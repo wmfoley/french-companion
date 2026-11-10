@@ -22,6 +22,8 @@ docs/                  Product governance
 ```
 
 ## Data boundaries
+Schema version 1 is specified in [ASSIGNMENT_MODEL.md](ASSIGNMENT_MODEL.md) and implemented by pure JavaScript utilities in `src/core/assignments/`. Preserved source excerpts and field-level interpreted content/provenance remain separate. Assignment approval accepts interpreted content for practice; it never upgrades source fidelity. Substantive edits to approved educational content require renewed review. FC-002 documents this policy without implementing revision history or an editing workflow.
+
 Teacher-provided text -> parent-reviewed structured assignment -> approved exercise instances -> local student attempts -> local progress summary. Supplementary AI practice must be tagged separately. Each question includes `id`, `type`, `sourceItemIds`, `prompt`, `correctAnswer`/`acceptedAnswers`, `gradingPolicy`, `explanation`, `origin` and `reviewStatus` where applicable.
 
 ## Grading

@@ -1,6 +1,6 @@
 # French Companion
 
-**Status:** FC-001 implemented and verified on web. JavaScript Expo scaffold, minimal navigation, pure grader and automated tests. No remote resources created. FC-002 has not started.
+**Status:** FC-001 web baseline and FC-002 local assignment model implemented. The reference fixture remains pending parent review and unverified against the original worksheet. No remote resources created.
 
 ## Quick start
 1. Create a **new, empty private GitHub repository** `french-companion` and clone it to a separate local folder. Do not open the equipment-planning repository in this VS Code window.
@@ -16,6 +16,10 @@
 ## Available verification
 
 Run `node --test tests/gradeAnswer.test.js`. No third-party dependencies are needed for these tests. The sample grader ignores case and surrounding whitespace, normalizes Unicode to NFC, and preserves accents, punctuation and internal whitespace.
+
+Run `npm.cmd test` for the full grader/assignment suite. Assignment schema version 1, provenance rules, lifecycle and API details are in [ASSIGNMENT_MODEL.md](docs/architecture/ASSIGNMENT_MODEL.md). The pure utilities validate data and default omitted collections without changing source excerpts or structured wording. NFC comparison is a separate helper.
+
+The [Grade 4 fixture](src/content/fixtures/grade4-reference.json) preserves the five PRD-reported terms/definitions and three grammar transformations. It invents no teacher instructions or example sentences. Approval accepts interpreted content for practice; it never establishes independent worksheet verification. Substantive changes after approval require renewed review. Editing/revision history and exercise generation remain outside FC-002.
 
 Dependencies are pinned exactly in `package.json` and `package-lock.json`. Do not run a scaffold generator over this repository.
 

@@ -1,0 +1,304 @@
+{
+  "schemaVersion": 1,
+  "id": "grade4-reference-001",
+  "title": "Grade 4 reference lesson",
+  "grade": 4,
+  "language": "fr-CA",
+  "reviewStatus": "pending_review",
+  "sources": [
+    {
+      "id": "source-dirigeant",
+      "reference": "docs/requirements/PRD_v0.1.md#5.1",
+      "fidelity": "reported_teacher_content",
+      "originalText": "un dirigeant | une personne qui dirige un groupe ou un pays"
+    },
+    {
+      "id": "source-negociateur",
+      "reference": "docs/requirements/PRD_v0.1.md#5.1",
+      "fidelity": "reported_teacher_content",
+      "originalText": "un négociateur | une personne qui essaie de trouver un accord"
+    },
+    {
+      "id": "source-crise",
+      "reference": "docs/requirements/PRD_v0.1.md#5.1",
+      "fidelity": "reported_teacher_content",
+      "originalText": "une crise | une période difficile ou dangereuse"
+    },
+    {
+      "id": "source-maquinna",
+      "reference": "docs/requirements/PRD_v0.1.md#5.1",
+      "fidelity": "reported_teacher_content",
+      "originalText": "Chef Maquinna | une personne importante chez les Nuu-chah-nulth"
+    },
+    {
+      "id": "source-pacifique",
+      "reference": "docs/requirements/PRD_v0.1.md#5.1",
+      "fidelity": "reported_teacher_content",
+      "originalText": "pacifique | qui favorise la paix et évite la violence"
+    },
+    {
+      "id": "source-grammar-label",
+      "reference": "docs/requirements/PRD_v0.1.md#5.2",
+      "fidelity": "reported_teacher_content",
+      "originalText": "-emment"
+    },
+    {
+      "id": "source-grammar-1",
+      "reference": "docs/requirements/PRD_v0.1.md#5.2",
+      "fidelity": "reported_teacher_content",
+      "originalText": "prudent → prudente → prudemment"
+    },
+    {
+      "id": "source-grammar-2",
+      "reference": "docs/requirements/PRD_v0.1.md#5.2",
+      "fidelity": "reported_teacher_content",
+      "originalText": "fréquent → fréquente → fréquemment"
+    },
+    {
+      "id": "source-grammar-3",
+      "reference": "docs/requirements/PRD_v0.1.md#5.2",
+      "fidelity": "reported_teacher_content",
+      "originalText": "patient → patiente → patiemment"
+    }
+  ],
+  "instructions": [],
+  "vocabulary": [
+    {
+      "id": "vocab-dirigeant",
+      "term": {
+        "text": "un dirigeant",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-dirigeant"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "definitionFr": {
+        "text": "une personne qui dirige un groupe ou un pays",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-dirigeant"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "exampleSentences": []
+    },
+    {
+      "id": "vocab-negociateur",
+      "term": {
+        "text": "un négociateur",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-negociateur"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "definitionFr": {
+        "text": "une personne qui essaie de trouver un accord",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-negociateur"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "exampleSentences": []
+    },
+    {
+      "id": "vocab-crise",
+      "term": {
+        "text": "une crise",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-crise"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "definitionFr": {
+        "text": "une période difficile ou dangereuse",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-crise"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "exampleSentences": []
+    },
+    {
+      "id": "vocab-maquinna",
+      "term": {
+        "text": "Chef Maquinna",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-maquinna"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "definitionFr": {
+        "text": "une personne importante chez les Nuu-chah-nulth",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-maquinna"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "exampleSentences": []
+    },
+    {
+      "id": "vocab-pacifique",
+      "term": {
+        "text": "pacifique",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-pacifique"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "definitionFr": {
+        "text": "qui favorise la paix et évite la violence",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-pacifique"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "exampleSentences": []
+    }
+  ],
+  "grammarConcepts": [
+    {
+      "id": "adverb-ent-emment",
+      "label": {
+        "text": "-emment",
+        "provenance": {
+          "origin": "teacher",
+          "sourceIds": [
+            "source-grammar-label"
+          ],
+          "reviewStatus": "pending_review"
+        }
+      },
+      "examples": [
+        {
+          "id": "grammar-example-1",
+          "adjective": {
+            "text": "prudent",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-1"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          },
+          "feminine": {
+            "text": "prudente",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-1"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          },
+          "adverb": {
+            "text": "prudemment",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-1"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          }
+        },
+        {
+          "id": "grammar-example-2",
+          "adjective": {
+            "text": "fréquent",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-2"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          },
+          "feminine": {
+            "text": "fréquente",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-2"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          },
+          "adverb": {
+            "text": "fréquemment",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-2"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          }
+        },
+        {
+          "id": "grammar-example-3",
+          "adjective": {
+            "text": "patient",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-3"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          },
+          "feminine": {
+            "text": "patiente",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-3"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          },
+          "adverb": {
+            "text": "patiemment",
+            "provenance": {
+              "origin": "teacher",
+              "sourceIds": [
+                "source-grammar-3"
+              ],
+              "reviewStatus": "pending_review"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "supportingMaterial": []
+}

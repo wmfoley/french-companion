@@ -20,9 +20,14 @@
 **Exit:** App starts in web preview; test suite passes; code has no remote services, no secrets, and no references to the equipment platform.
 
 ## FC-002 — Reference assignment and schema
-- [ ] Transcribe reviewed anonymous worksheet content from PRD section 5.
-- [ ] Define schema and validation for teacher content vs extra practice.
-- [ ] Add deterministic fixture-based tests.
+**Status:** Implemented; reference content remains `pending_review`, unverified against the original worksheet. See assignment model specification and final verification in development log.
+- [x] Copy PRD section 5 reported content into an anonymous reference fixture without claiming verified worksheet transcription or inventing missing content.
+- [x] Define schema version 1 and pure validation/normalization, with preserved sources separate from field-level provenance and interpreted content.
+- [x] Document draft/pending_review/approved lifecycle, correction explanations, fidelity independence and renewed review after substantive edits.
+- [x] Add deterministic fixture, malformed-content, Unicode, preservation and grader regression tests.
+- [x] Update architecture, PRD source qualification, test plan, fixture README, root README and development log.
+
+Before FC-003: obtain parent acceptance before using reference content for actual practice; keep checked-in fixture pending review until explicitly approved. Plan exercise schemas/policies and approved-content eligibility separately. No generator or review UI is implemented in FC-002.
 
 ## FC-003 — Core exercises
 - [ ] Matching, spelling error, fill-blank, grammar transformation.
@@ -44,4 +49,4 @@ Android device hardening; camera/OCR; secure AI backend; Supabase; parent-manage
 - `npm.cmd test`: 8 passed, 0 failed; lint passed; `expo install --check` up to date; web export passed.
 - Live Expo web preview and headless Edge home -> practice -> home passed with no runtime exceptions/console errors. Android and human visual/accessibility review untested.
 - `npm.cmd audit --json`: 12 moderate, no high/critical advisories. ESLint 9 deprecated; compatible Expo plugin update needed before ESLint 10.
-- FC-002 is next, not started. No fixtures or child identifiers included in FC-001.
+- At FC-001 completion, FC-002 was next and not started. No fixtures or child identifiers were included in FC-001; see FC-002 status above for subsequent progress.

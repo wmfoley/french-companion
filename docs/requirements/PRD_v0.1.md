@@ -65,6 +65,8 @@ French Immersion Study Companion helps elementary students practise the spelling
 
 ## 5. Reference assignment: Grade 4 vocabulary and grammar
 
+**FC-002 source qualification:** The local reference fixture copies the vocabulary/definitions and grammar examples reported here. It remains `pending_review` and unverified against the original worksheet. Parent approval accepts interpreted content for practice; it does not independently verify the worksheet or upgrade source fidelity. Missing teacher instructions and example sentences are not reconstructed. Preserved source excerpts remain separate from corrections, which require provenance and an explanation. Substantive educational edits to approved assignments require renewed review.
+
 **Worksheet title:** Vocab/grammar quiz.
 
 ### 5.1 Vocabulary (preserve original French definitions)
@@ -166,6 +168,8 @@ No assumption that school quizzes always occur on Friday; parent can change test
 - Camera capture, local text editing, audio playback, question rendering, deterministic scoring, study scheduling and basic error categorization.
 
 ### 9.3 Structured output (conceptual)
+
+This earlier conceptual generation example is not the local assignment schema. FC-002's approved schema version 1 is documented in `docs/architecture/ASSIGNMENT_MODEL.md`; assignment content, exercise instances and student performance records remain separate.
 
 ```json
 {
