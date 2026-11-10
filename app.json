@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "French Companion",
+    "slug": "french-companion",
+    "version": "0.1.0",
+    "scheme": "french-companion",
+    "plugins": ["expo-router"],
+    "web": { "bundler": "metro", "output": "single" },
+    "experiments": { "typedRoutes": false }
+  }
+}
