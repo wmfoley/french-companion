@@ -24,7 +24,9 @@ docs/                  Product governance
 ## Data boundaries
 Schema version 1 is specified in [ASSIGNMENT_MODEL.md](ASSIGNMENT_MODEL.md) and implemented by pure JavaScript utilities in `src/core/assignments/`. Preserved source excerpts and field-level interpreted content/provenance remain separate. Assignment approval accepts interpreted content for practice; it never upgrades source fidelity. Substantive edits to approved educational content require renewed review. FC-002 documents this policy without implementing revision history or an editing workflow.
 
-Teacher-provided text -> parent-reviewed structured assignment -> approved exercise instances -> local student attempts -> local progress summary. Supplementary AI practice must be tagged separately. Each question includes `id`, `type`, `sourceItemIds`, `prompt`, `correctAnswer`/`acceptedAnswers`, `gradingPolicy`, `explanation`, `origin` and `reviewStatus` where applicable.
+Teacher-provided text -> parent-reviewed structured assignment -> exercise definitions -> local student attempts -> local progress summary. Supplementary AI practice must be tagged separately. FC-003's minimal versioned vocabulary definition references assignment/item IDs and resolves prompt, correct term, provenance and fidelity from an independent assignment snapshot rather than duplicating them. See [EXERCISE_MODEL.md](EXERCISE_MODEL.md). Future exercise types may add explicit prompt/accepted-answer fields when required.
+
+Normal generation requires approved assignments. The pending reference fixture is playable only through an explicitly labelled development demo, gated by the application build's `__DEV__`. Exercise definitions, assignment data and session responses remain separate; session outcomes distinguish first-attempt success, second-attempt success and two misses. No persisted performance records or adaptation yet.
 
 ## Grading
 Pure functions, with explicit policies for accents, capitalization, whitespace, and punctuation. Never normalize away a learning target by default. Record mistake categories without exposing answers before submission.

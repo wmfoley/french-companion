@@ -209,7 +209,7 @@ This earlier conceptual generation example is not the local assignment schema. F
 
 - JSON schema validation and allowed exercise-type validation.
 - Source references for every teacher-based question.
-- No answer leakage in displayed prompts, hints or multiple-choice options.
+- No unintended answer leakage in displayed prompts or hints. In FC-003 definition-to-term multiple choice, the correct term is necessarily among the answer options; do not identify it before question completion. Dictation continues to hide its target answer before submission.
 - Check that each question has an unambiguous correct answer; generated spelling errors must be plausible and unique.
 - Validate grammar examples against an approved rule/exemplar set; reject uncertain outputs.
 - Enforce small response size, cost limits, and retries with safe fallback.

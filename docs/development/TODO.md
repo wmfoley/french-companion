@@ -29,9 +29,21 @@
 
 Before FC-003: obtain parent acceptance before using reference content for actual practice; keep checked-in fixture pending review until explicitly approved. Plan exercise schemas/policies and approved-content eligibility separately. No generator or review UI is implemented in FC-002.
 
-## FC-003 — Core exercises
-- [ ] Matching, spelling error, fill-blank, grammar transformation.
-- [ ] Per-exercise grading policies and hints.
+## FC-003 — First interactive vocabulary exercise
+**Status:** Implemented and web-verified. Android/screen-reader validation and parent acceptance remain outstanding; fixture stays pending review.
+**Scope:** Owner-approved narrowing to vocabulary multiple choice; other exercise types retained below.
+- [x] Versioned reference-based exercise representation and deterministic three-option generation.
+- [x] Approved-content eligibility; explicitly labelled development-only pending reference demo.
+- [x] Two-attempt ID grading, three response outcomes, progression guards and internal first-attempt scoring.
+- [x] French-first playable session, retry encouragement, disabled repeated wrong option and participation-focused summary.
+- [x] Pure core/session tests and documentation of assignment/exercise/response separation.
+- [x] Final lint, tests, web export, browser development/production checks and development log report.
+
+Recommended next milestone: plan local parent review/approved-lesson loading and Android household validation before adding another exercise type. Preserve the development demo exception separately from actual parent approval.
+
+## Remaining core exercise types — future tickets
+- [ ] Matching pairs, spelling-error identification, fill-in-the-blank and grammar transformation.
+- [ ] Per-exercise grading policies, reviewed keys and hints; plan one type at a time.
 
 ## FC-004 — Dictation and mixed session
 - [ ] Speech adapter and audio fallback; answer hidden until submission.
@@ -43,6 +55,11 @@ Before FC-003: obtain parent acceptance before using reference content for actua
 
 ## Future — only after POC exit gate
 Android device hardening; camera/OCR; secure AI backend; Supabase; parent-managed profiles; privacy/legal review; distribution.
+
+## CURR-001 — Optional BC Curriculum-Aligned Enrichment (future, not implemented)
+- [ ] Parent-controlled, disabled by default; based on reviewed BC French Immersion curriculum references.
+- [ ] Teacher-assigned work remains the primary learning pathway. Enrichment stays optional and distinguishable from assignment source material.
+- [ ] Review scope and authoritative curriculum references before implementation; no curriculum claims or content generation authorized in FC-003.
 
 ## FC-001 final verification — 2026-11-10
 - Node 22.23.4 / npm 10.9.9 through terminal-local fnm; no default alias remains.
