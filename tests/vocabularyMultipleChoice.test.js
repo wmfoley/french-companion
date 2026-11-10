@@ -1,10 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fixture = require('../src/content/fixtures/grade4-reference.json');
-const { generateVocabularyQuestions: generate, validateVocabularyQuestion, resolveVocabularyQuestion, gradeVocabularyChoice } = require('../src/core/exercises/vocabularyMultipleChoice');
+const { generateVocabularyQuestions, validateVocabularyQuestion, resolveVocabularyQuestion, gradeVocabularyChoice } = require('../src/core/exercises/vocabularyMultipleChoice');
+// Explicit test-only acceptance evidence, not an application approval shortcut.
+const generate = (assignment, options = {}) => generateVocabularyQuestions(assignment, {
+  ...(assignment.reviewStatus === 'approved' ? { approval: { method: 'bulk_risk_acknowledged', riskAcknowledgementVersion: 1, contentRevision: 1, acceptedAt: '2026-11-10T00:00:00Z' } } : {}), ...options,
+});
 
 function approvedAssignment() {
   const value = JSON.parse(JSON.stringify(fixture));
+  value.id = 'household-test';
   function approve(object) {
     if (!object || typeof object !== 'object') return;
     if (Object.hasOwn(object, 'reviewStatus')) object.reviewStatus = 'approved';
@@ -22,6 +27,7 @@ test('normal practice requires approval and demo requires explicit development c
   assert.equal(generate({ ...fixture, id: 'another-assignment' }, { mode: 'demo', development: true }).questions.length, 0);
   assert.equal(generate({ ...fixture, reviewStatus: 'draft' }, { mode: 'demo', development: true }).questions.length, 0);
   assert.equal(generate(approvedAssignment()).questions.length, 5);
+  assert.equal(generateVocabularyQuestions(approvedAssignment()).questions.length, 0);
 });
 
 test('generation preserves fixture, review status, sources and educational wording', () => {

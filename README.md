@@ -1,6 +1,6 @@
 # French Companion
 
-**Status:** FC-003 adds playable French vocabulary multiple choice to the FC-001/FC-002 baseline. The reference fixture remains pending parent review and unverified against the original worksheet. No remote resources created.
+**Status:** FC-004 adds web-only local Parent Area, PIN authorization, IndexedDB persistence and household practice policy. The reference fixture remains development-only, pending review and unverified against the original worksheet. No remote resources created.
 
 ## Quick start
 1. Create a **new, empty private GitHub repository** `french-companion` and clone it to a separate local folder. Do not open the equipment-planning repository in this VS Code window.
@@ -25,7 +25,32 @@ The [Grade 4 fixture](src/content/fixtures/grade4-reference.json) preserves the 
 
 Start the development preview with `npm.cmd run web -- --localhost`. Choose **Démo — contenu en attente de validation** on the home screen, then **C’est parti !**. The label remains visible throughout the five-question session. Each definition has three word choices. Select one, then **Vérifier**. A first miss gives encouragement without identifying the answer and disables the attempted option. After the second attempt the exact term-definition pairing appears, regardless of correctness. **Suivant** advances; **Terminer** shows an encouraging participation summary; **Rejouer** clears attempts.
 
-Normal **Commencer à pratiquer** requires approved content. Because the current fixture is still pending review, it shows an awaiting-parent-validation message. Production builds have no demo entry; adding `?mode=demo` cannot enable pending content. No approval UI or approved-assignment loader exists yet. No storage is used; leaving practice clears the session.
+Normal **Commencer à pratiquer** lists persisted household assignments and applies the saved household policy. The strict default requires revision-bound parent acceptance; explicit parent-enabled independent mode allows eligible unreviewed assignments, with a French notice. Neither mode changes review status or source fidelity. Production builds have no reference demo entry; adding `?mode=demo` cannot promote the bundled fixture. Leaving practice clears its in-memory responses; assignments/policy persist.
+
+## Local parent setup and household policy (web)
+
+1. Open **Parent Area** with a parent present. Create and confirm one six-digit PIN. The installation starts in **Require parent approval before practice** mode.
+2. Unlock using the PIN. To permit independent learning, select **Allow independent practice**, read the explanation, explicitly tick the risk acknowledgement, then save. Selecting an option alone does not save anything.
+3. Return to student home. Parent access locks on leaving/backgrounding or after a maximum five-minute unlock session. The independent policy stays saved across visits/reloads; the parent need not unlock for each student session.
+4. Normal practice can use stored pending assignments when independent mode is saved. Switching to strict mode pauses unreviewed active practice on the next eligibility check; checks occur before transitions and every two seconds. Storage failures also stop practice.
+
+An empty installation has no household assignments. FC-004 supplies a narrow pending-assignment submission service for future intake, but intentionally adds no import/camera/assignment-entry UI and no detailed review/correction/Approve All workflow. Those review operations belong to FC-005. The reference fixture is never seeded into household storage automatically.
+
+Settings are local to this browser profile and origin (including port). Keep using the same preview port for normal use. PIN verifiers are salted PBKDF2, not plaintext; browser data is not encrypted by this application. Developer tools/device control can bypass a local gate. Supervise initial setup. There is no in-app forgotten-PIN reset: clearing site data loses local configuration and assignments. No accounts/cloud recovery. Android household operations deliberately fail closed until native adapters are implemented and verified. See [ADR-0002](docs/decisions/ADR-0002.md).
+
+FC-004 verification: `npm.cmd test` passed 59 tests; lint, Expo dependency validation and web export passed. Real IndexedDB/browser checks covered setup, default strict mode, risk acknowledgement, reload/leave/background locking, protected direct calls, write rollback, serialized updates, stale revisions and policy revocation from a separate browser tab. Mobile-width Parent Area screenshot inspected; no runtime/console errors. Android and screen-reader behavior remain unverified.
+
+To repeat the dependency-free browser check with installed Edge/Chromium:
+
+```powershell
+# Terminal 1, after initializing project Node:
+npm.cmd run web -- --localhost --port 8083
+# Terminal 2, after initializing project Node:
+npm.cmd run export:web
+node scripts/verify-household-web.cjs
+```
+
+The script uses an isolated test browser profile under ignored `.expo/`, a localhost:8082 static export server and debugging port 9333. Set `$env:FC_BROWSER_PATH` for a different installed Chromium executable. It tests synthetic household data via injected test-only module instances, not application debug hooks, and never modifies your normal browser data. Local ports must be free; no upload/deployment occurs.
 
 The pure core preserves three outcomes for future practice planning: first-attempt success, second-attempt success, and incorrect after two attempts. Internal first-attempt counts are not shown as a prominent student score. No adaptation is implemented. See [EXERCISE_MODEL.md](docs/architecture/EXERCISE_MODEL.md) for schema, generation, eligibility and session policy. Remaining exercise types and optional parent-controlled BC curriculum enrichment (CURR-001) stay in the backlog.
 

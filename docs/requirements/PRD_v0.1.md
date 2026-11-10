@@ -3,6 +3,7 @@
 
 **Status:** Initial development baseline / proposed, not yet approved  
 **Architecture reconciliation:** 2026-11-10 — owner-approved ADR-0001 supersedes the separate web/mobile prototype architecture; educational requirements remain proposed.
+**Household policy reconciliation:** 2026-11-10 — approved ADR-0002 separates assignment review, practice eligibility and source fidelity; supersedes mandatory per-assignment approval wording for households explicitly allowing independent practice.
 **Date:** 2026-11-09  
 **Primary audience:** Canadian elementary French Immersion students (initial test: Grade 4; design range Grades 2–5) and their English-speaking parents  
 **Target platform:** Android  
@@ -56,12 +57,13 @@ French Immersion Study Companion helps elementary students practise the spelling
 
 ## 4. Source-of-truth and content policy
 
-- The **teacher's worksheet**, after OCR correction and parent approval, is the authoritative source for *Study My Assignment*.
+- The **teacher's worksheet** is the preserved source for *Study My Assignment*. Interpretations and parent corrections remain separate. Parent review/acceptance, practice permission and verification against the worksheet are independent concepts.
 - AI may classify and organize the worksheet but must not silently alter the teacher's definitions, spelling or examples.
 - The application clearly labels **Teacher material** and **Extra practice (AI-generated)**.
 - Grammar explanations must be grounded in a reviewed rule set; AI-generated exercises and keys are checked before release to the child.
 - When OCR confidence or grammar interpretation is uncertain, request parent review or omit the uncertain exercise.
 - AI-generated practice is not presented as an official teacher expectation or an exact prediction of the school quiz.
+- Household practice defaults to requiring parent acceptance. A parent may explicitly enable independent practice with eligible, structurally valid unreviewed assignments after acknowledging interpretation/transcription risks. Independent practice does not approve assignments or verify sources. It does not automatically enable AI supplementary content.
 
 ## 5. Reference assignment: Grade 4 vocabulary and grammar
 
@@ -152,6 +154,8 @@ No assumption that school quizzes always occur on Friday; parent can change test
 - View a concise weekly progress summary and common mistakes.
 - Delete the weekly assignment and associated student results.
 
+**Local Parent Area (ADR-0002):** One household per installation and one parent PIN; protected service commands enforce settings independently of navigation. FC-004 implements web persistence, strict-by-default policy and explicit independent-practice opt-in. FC-005 adds reviewed approval/corrections and separate Approve All with risk acknowledgement. Both acceptance methods can authorize strict-mode practice and retain their distinction; neither verifies the original worksheet. Student setup/use must not require repeated parent intervention after policy configuration. No accounts or cloud authentication in these milestones.
+
 **Parent guidance example:** “This week's grammar focuses on the -ent → -emment pattern. Ask your child to explain the rule and spell *prudemment*, *fréquemment* and *patiemment* after hearing them. The spoken ending can sound like -amment.”
 
 ## 9. AI and content-generation contract
@@ -213,7 +217,7 @@ This earlier conceptual generation example is not the local assignment schema. F
 - Check that each question has an unambiguous correct answer; generated spelling errors must be plausible and unique.
 - Validate grammar examples against an approved rule/exemplar set; reject uncertain outputs.
 - Enforce small response size, cost limits, and retries with safe fallback.
-- Parent review before first use of newly interpreted worksheets; consider sampling teacher review during pilot.
+- Apply household eligibility policy before practice: parent acceptance is required in strict mode; eligible unreviewed assignments may be practised in independent mode. Content structure and exercise validation remain mandatory in both. Consider sampling teacher review during pilot.
 
 ## 10. Technical architecture
 

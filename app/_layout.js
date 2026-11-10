@@ -5,6 +5,7 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerTintColor: '#174b3e' }}>
       <Stack.Screen name="index" options={{ title: 'Accueil' }} />
       <Stack.Screen name="practice" options={{ title: 'Entraînement' }} />
+      <Stack.Screen name="parent" options={{ title: 'Parent Area' }} />
     </Stack>
   );
 }

@@ -1,4 +1,5 @@
 const { normalizeAssignment } = require('../assignments/normalizeAssignment');
+const { evaluatePracticeEligibility } = require('../assignments/practiceEligibility');
 
 const POLICY = 'multiple-choice-two-attempts-v1';
 const comparison = text => text.normalize('NFC').trim().toLocaleLowerCase('fr-CA');
@@ -15,18 +16,19 @@ function shuffle(values, seed) {
   return copy;
 }
 
-function generateVocabularyQuestions(input, { mode = 'practice', development = false, seed = 42 } = {}) {
+function generateVocabularyQuestions(input, { mode = 'practice', development = false, seed = 42, householdPolicy, approval = null, contentRevision = 1, purpose = 'household_assignment' } = {}) {
   const assignment = normalizeAssignment(input);
   if (!['practice', 'demo'].includes(mode) || !Number.isInteger(seed)) throw new TypeError('Invalid generation options.');
   // Development capability is supplied by the application build, never a route parameter.
   const demo = mode === 'demo' && development === true && assignment.id === 'grade4-reference-001' && assignment.reviewStatus === 'pending_review';
-  if ((mode === 'demo' && !demo) || (!demo && assignment.reviewStatus !== 'approved')) {
+  const eligibility = evaluatePracticeEligibility({ assignmentDocument: { storageVersion: 1, contentRevision, purpose, assignment, approval }, householdPolicy });
+  if ((mode === 'demo' && !demo) || (!demo && !eligibility.eligible)) {
     return { questions: [], diagnostics: [{ code: 'approval_required' }] };
   }
   const diagnostics = [];
   const candidates = assignment.vocabulary.filter(item => {
     const eligible = teacherContent(item.term) && teacherContent(item.definitionFr) &&
-      (demo || [item.term, item.definitionFr].every(field => field.provenance.reviewStatus === 'approved'));
+      (demo || eligibility.eligible);
     if (!eligible) diagnostics.push({ itemId: item.id, code: 'ineligible_content' });
     return eligible;
   });
