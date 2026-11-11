@@ -2,6 +2,42 @@
 
 Current native acceptance is tracked separately in [ANDROID_ACCEPTANCE_FC004N.md](ANDROID_ACCEPTANCE_FC004N.md); earlier sections below retain their milestone scope.
 
+## FC-003A — practice randomization
+
+- `tests/randomizePresentation.test.js`: deterministic injectable randomness, frozen input/nonmutation and separate copies, complete question/choice permutations, correct-answer/source associations, independent per-question option draws, empty/single inputs and invalid RNG values.
+- `tests/practiceRun.test.js`: authorization before randomness, once-per-run generation, stable retry/advance/completion presentation, unchanged three outcomes/scoring, new replay and cleared responses, rapid Start/Replay taps, denied/rejected authorization, unmount/re-entry and late start/replay/submit completion. Old finalizers must not release a newer pending guard.
+- `tests/household.test.js`: exercise the coordinator with the real household service policy checks; strict start denial, independent start, strict revocation denying submission/advance, and preserved pending source/approval state. Retain all existing approval/fidelity, native, concurrency and failure regressions.
+- Browser: actual demo and household paths, controlled browser-only randomness, complete five-question permutations, retry/feedback/viewport-rerender stability, all learning outcomes, replay reset/new ordering, rapid Start/Replay, leave reset, and existing strict/default/independent/revocation plus production-exclusion checks. No application debug hook or test dependency.
+- Run `npm.cmd test`, `npm.cmd run lint`, `npx.cmd expo install --check`, `npm.cmd run export:web`, local web preview on port 8083 and `node scripts/verify-household-web.cjs`. Report actual results and Android separately.
+
+Physical Android acceptance: **completed, owner-reported on 2026-11-11, Android 12 / French Companion Dev**. All planned scenarios passed. The procedure below is retained for future regression testing; Owner authorized the local FC-003A milestone commit on 2026-11-11; push remains unauthorized.
+
+1. Reconnect the existing French Companion Dev APK with `$env:APP_VARIANT = 'development'` then `npx.cmd expo start --dev-client --lan --scheme french-companion-dev`; refresh JavaScript only, retaining stored household data.
+2. In the labelled demo, rapidly tap Start; confirm one five-question run. Note definition/choice order; select/deselect and retry a wrong choice. Order must stay fixed and the wrong choice remain disabled.
+3. Exercise first-attempt success, retry success and two misses; verify encouragement, exact completion pairing, progression and summary. No duplicate/omitted question; existing source text remains intact.
+4. Rapidly tap Replay; confirm one fresh run with reset responses. Repeat several sessions to observe variation; occasional identical positions/orders are allowed. Leave/return to confirm reset, and background/resume to confirm no mid-session reshuffle.
+5. With the already parent-loaded development sample, verify strict blocking, explicitly enable independent practice, play the labelled randomized sample, then restore strict mode and confirm unapproved access is revoked. Assignment remains stored and pending/unverified; do not reset credentials/data.
+6. Navigate away immediately after Start/Replay and return: no late run should appear. Report any device-only errors before acceptance. Node/browser checks do not establish Hermes/tablet behaviour.
+
+Final engineering recheck (2026-11-11): `npm.cmd test` passed 108/108, lint and web export passed. `npx.cmd expo install --check` now exits 1 with eight recommended SDK 58 patch updates; dependency manifests remain unchanged from 0c1cda7. The owner explicitly accepted this unchanged-baseline exception for the FC-003A commit on 2026-11-11; the check remains failed, unsuppressed and tracked as separate deferred maintenance. No upgrade is authorized here. Final isolated headless Edge browser regressions also passed without runtime exceptions or console errors; details are in the development log.
+
+### FC-003A confirmed physical results — 2026-11-11
+
+These are owner-reported physical tests, not agent-executed device measurements:
+
+- [x] Rapid Start taps produce only one session.
+- [x] Question order and answer-choice positions are randomized.
+- [x] Replay resets responses and produces a fresh randomized presentation.
+- [x] Choices remain stable through an incorrect first attempt and the second attempt.
+- [x] Five-question completion displays the existing **Bravo pour tes efforts !** celebration and **Rejouer**. No per-question results screen is required or added; the earlier completion concern is resolved by this confirmation, without a code correction.
+- [x] Leaving practice discards the active session and preserves the assignment.
+- [x] Brief Android background/resume preserves the active question and option positions.
+- [x] Strict parent approval blocks the unapproved development assignment.
+- [x] Independent practice permits that assignment.
+- [x] Restoring strict policy during active practice prevents continued unauthorized practice.
+- [x] Restoring independent policy permits a fresh session without retained responses.
+
+Additional screen-reader and broader usability checks remain separate; no claim of Android process-kill session restoration or guaranteed distinct permutations. No application correction was needed for this acceptance review.
 ## FC-004N verification boundary
 
 FC-004N.2B adds native engine integration tests with a Node crypto stand-in, clearly not Android execution: old/missing/API-unsupported module, correct/wrong PIN, public and legacy/WebCrypto credential compatibility, strict input/output lengths, sanitized errors, concurrency, deferred setup/unlock cancellation, no storage access on unavailability, actual shared-credential serialization through Node SQLite/SecureStore simulation. Existing partial-initialization/focus/strict-policy tests remain. The retained public proof now shares the Kotlin derivation helper. Run [physical household acceptance](ANDROID_HOUSEHOLD_ACCEPTANCE_FC004N_2B.md) only after separately approved APK rebuild; native correctness is not established by Node tests or JS exports.

@@ -96,6 +96,52 @@ try {
     })()`);
     if (!valid) throw Error('Secure PIN field configuration/contrast regression');
   }
+  async function readQuestion() {
+    return evaluate(`(() => {
+      const group = [...document.querySelectorAll('[role="radiogroup"]')].find(el => el.getClientRects().length);
+      if (!group) throw Error('Missing vocabulary choices');
+      return { definition: group.previousElementSibling.innerText,
+        options: [...group.querySelectorAll('[role="radio"]')].map(el => el.innerText.replace(/ — (Déjà essayé|Choisi)$/, '')) };
+    })()`);
+  }
+  async function choose(text) {
+    const clicked = await evaluate(`(() => {
+      const option = [...document.querySelectorAll('[role="radio"]')].find(el => el.getClientRects().length && el.innerText === ${JSON.stringify(text)});
+      if (!option || option.getAttribute('aria-disabled') === 'true') return false;
+      option.click(); return true;
+    })()`);
+    if (!clicked) throw Error('Missing enabled vocabulary option');
+    await wait(100);
+    await clickText('Vérifier');
+  }
+  async function completeRandomizedSession(mixed = false) {
+    const presentation = [];
+    for (let index = 0; index < 5; index++) {
+      await expectText(`Question ${index + 1} sur 5`);
+      const question = await readQuestion(); presentation.push(question);
+      const target = fixture.vocabulary.find(item => item.definitionFr.text === question.definition);
+      if (!target || new Set(question.options).size !== 3 || !question.options.includes(target.term.text)) throw Error('Randomized source association changed');
+      const wrong = question.options.filter(text => text !== target.term.text);
+      if (mixed && [1, 2].includes(index)) {
+        await choose(wrong[0]);
+        await expectText('Bonne tentative ! Essaie un autre mot.');
+        if (JSON.stringify(await readQuestion()) !== JSON.stringify(question)) throw Error('Retry reshuffled presentation');
+        const disabled = await evaluate(`(() => {
+          const el = [...document.querySelectorAll('[role="radio"]')].find(el => el.innerText === ${JSON.stringify(wrong[0] + ' — Déjà essayé')});
+          return el?.getAttribute('aria-disabled') === 'true';
+        })()`);
+        if (!disabled) throw Error('Repeated wrong choice remains enabled');
+      }
+      await choose(mixed && index === 2 ? wrong[1] : target.term.text);
+      await expectText(`${target.term.text} : ${target.definitionFr.text}`);
+      if (JSON.stringify(await readQuestion()) !== JSON.stringify(question)) throw Error('Feedback reshuffled presentation');
+      await clickText(index === 4 ? 'Terminer' : 'Suivant');
+    }
+    await expectText('Bravo pour tes efforts !');
+    await expectText('Tu as exploré 5 mots.');
+    if (new Set(presentation.map(q => q.definition)).size !== 5) throw Error('Questions omitted or duplicated');
+    return presentation;
+  }
   const moduleFiles = ['src/services/localHousehold.web.js','src/services/householdService.js','src/services/storage/indexedDbStore.js','src/services/parent/pinCredential.js','src/core/assignments/normalizeAssignment.js','src/core/assignments/validateAssignment.js','src/core/assignments/practiceEligibility.js','src/content/developmentSample.js','src/content/fixtures/grade4-reference.json'];
   const sources = Object.fromEntries(moduleFiles.map(file => [file, fs.readFileSync(file, 'utf8')]));
   async function inOtherTab(expression) {
@@ -213,13 +259,35 @@ try {
   if (await evaluate(`document.body.innerText.includes('Démo') || document.body.innerText.includes('C’est parti')`)) throw Error('Production demo bypass');
   await call('Page.navigate', { url: 'http://localhost:8083' });
   await expectText('Bienvenue !');
+  // Deterministic browser-only RNG, installed before mounting practice. No app debug hooks.
+  await evaluate(`window.fcOriginalRandom = Math.random; window.fcRandomValue = 0; Math.random = () => window.fcRandomValue;`);
   await clickText('Démo — contenu en attente de validation');
   await expectText('Jouons avec les mots !');
-  await clickText('C’est parti !');
+  await evaluate(`(() => { const el = [...document.querySelectorAll('[role="button"]')].find(el => el.innerText === 'C’est parti !'); el.click(); el.click(); })()`);
   await expectText('Question 1 sur 5');
   await expectText('Démo — contenu en attente de validation');
+  const beforeResize = await readQuestion();
+  await call('Emulation.setDeviceMetricsOverride', {width:430,height:844,deviceScaleFactor:1,mobile:true});
+  await wait(200);
+  if (JSON.stringify(await readQuestion()) !== JSON.stringify(beforeResize)) throw Error('Rerender reshuffled question');
+  const firstPresentation = await completeRandomizedSession(true);
+  await evaluate(`window.fcRandomValue = 0.999;`);
+  await evaluate(`(() => { const el = [...document.querySelectorAll('[role="button"]')].find(el => el.innerText === 'Rejouer'); el.click(); el.click(); })()`);
+  await expectText('Question 1 sur 5');
+  const replayPresentation = await completeRandomizedSession();
+  if (JSON.stringify(firstPresentation) === JSON.stringify(replayPresentation)) throw Error('Replay reused old presentation');
+  if (firstPresentation.map(q => q.definition).join() === replayPresentation.map(q => q.definition).join()) throw Error('Question order did not change with controlled randomness');
+  if (!firstPresentation.some(q => q.options.join() !== replayPresentation.find(other => other.definition === q.definition).options.join())) throw Error('Answer positions did not change with controlled randomness');
+  for (const question of firstPresentation) {
+    const replay = replayPresentation.find(q => q.definition === question.definition);
+    if ([...question.options].sort().join() !== [...replay.options].sort().join()) throw Error('Replay changed distractor membership');
+  }
   await clickText('Retour à l’accueil');
   await expectText('Bienvenue !');
+  await evaluate(`Math.random = window.fcOriginalRandom; delete window.fcOriginalRandom; delete window.fcRandomValue;`);
+  await clickText('Démo — contenu en attente de validation');
+  await expectText('Jouons avec les mots !');
+  await clickText('Retour à l’accueil');
   await clickText('Parent Area');
   await expectText('Save household setup');
   await fill('New six-digit parent PIN', '123456');
@@ -247,7 +315,7 @@ try {
   await expectText('Unavailable here. Use the Android development build.');
   if (await evaluate(`document.body.innerText.includes('Run public vector:')`)) throw Error('Native proof exposed on production web');
   if (errors.length) throw Error(JSON.stringify(errors));
-  console.log('PASS FC-004/FC-004N: setup/default strict, risk opt-in, persistent pending practice, protected direct commands, IndexedDB failure rollback/concurrency, stale policy writes, live revocation, reload/leave locking, wrong PIN, production demo exclusion, development demo regression and protected labelled sample practice; no runtime/console errors.');
+  console.log('PASS FC-003A/FC-004/FC-004N: randomized question/choice presentation, stable retry/rerender/feedback, fresh replay, rapid start/replay, all outcomes and leave reset; setup/default strict, risk opt-in, persistent pending practice, protected commands, IndexedDB rollback/concurrency, stale writes, live revocation, lifecycle locks, wrong PIN, production exclusions and protected sample practice; no runtime/console errors.');
   await call('Browser.close');
 } finally {
   socket?.close();

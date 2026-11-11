@@ -6,7 +6,8 @@ import VocabularyQuestion from '../src/components/VocabularyQuestion';
 import referenceAssignment from '../src/content/fixtures/grade4-reference.json';
 import { normalizeAssignment } from '../src/core/assignments/normalizeAssignment';
 import { generateVocabularyQuestions, resolveVocabularyQuestion } from '../src/core/exercises/vocabularyMultipleChoice';
-import { createSession, submitAnswer, advanceSession, summarizeSession } from '../src/core/sessions/practiceSession';
+import { summarizeSession } from '../src/core/sessions/practiceSession';
+import { createPracticeRun } from '../src/core/sessions/practiceRun';
 import { localHousehold } from '../src/services/localHousehold';
 
 export default function PracticeScreen() {
@@ -20,13 +21,15 @@ function HouseholdPractice({ assignmentId }) {
   const [assignments, setAssignments] = useState(null);
   const [error, setError] = useState('');
   const active = useRef(false);
+  const visit = useRef(0);
   const baseline = useRef(null);
   const verify = useCallback(async () => {
+    const checkingVisit = visit.current;
     try {
       const latest = await localHousehold.readPractice(assignmentId);
       if (!latest.eligibility.eligible || latest.document.contentRevision !== baseline.current) throw new Error('Cette leçon n’est plus disponible avec la politique actuelle du foyer.');
-      if (active.current) return true;
-    } catch { if (active.current) setError('La pratique est en pause. La politique du foyer a changé ou les données locales sont indisponibles.'); }
+      if (active.current && checkingVisit === visit.current) return true;
+    } catch { if (active.current && checkingVisit === visit.current) setError('La pratique est en pause. La politique du foyer a changé ou les données locales sont indisponibles.'); }
     return false;
   }, [assignmentId]);
   useEffect(() => {
@@ -35,25 +38,28 @@ function HouseholdPractice({ assignmentId }) {
   }, [assignmentId, verify]);
   useFocusEffect(useCallback(() => {
     active.current = true;
+    const loadingVisit = ++visit.current;
+    const current = () => active.current && loadingVisit === visit.current;
     setError(''); setContent(null);
     async function load() {
       try {
         if (!assignmentId) {
           const list = await localHousehold.listPracticeAssignments();
-          if (active.current) setAssignments(list);
+          if (current()) setAssignments(list);
           return;
         }
         const result = await localHousehold.readPractice(assignmentId);
+        if (!current()) return;
         if (!result.eligibility.eligible) throw new Error('Cette leçon attend une autorisation selon la politique du foyer.');
         baseline.current = result.document.contentRevision;
         const generated = generateVocabularyQuestions(result.document.assignment, { householdPolicy: result.policy, approval: result.document.approval, development: __DEV__,
           contentRevision: result.document.contentRevision, purpose: result.document.purpose });
-        if (active.current) setContent({ assignment: result.document.assignment, purpose: result.document.purpose, eligibility: result.eligibility, ...generated });
-      } catch (failure) { if (active.current) setError(failure.message); }
+        if (current()) setContent({ assignment: result.document.assignment, purpose: result.document.purpose, eligibility: result.eligibility, ...generated });
+      } catch (failure) { if (current()) setError(failure.message); }
     }
     load();
     const timer = setInterval(() => { if (assignmentId && baseline.current) verify(); }, 2000);
-    return () => { active.current = false; baseline.current = null; clearInterval(timer); setContent(null); };
+    return () => { active.current = false; visit.current++; baseline.current = null; clearInterval(timer); setContent(null); };
   }, [assignmentId, verify]));
   if (content && !error) return <Practice loadedContent={content} verify={verify} />;
   return <Screen>
@@ -73,9 +79,15 @@ function Practice({ demo = false, loadedContent, verify = async () => true }) {
     const assignment = normalizeAssignment(referenceAssignment);
     return { assignment, ...generateVocabularyQuestions(assignment, { mode: demo ? 'demo' : 'practice', development: __DEV__ }) };
   });
-  const [session, setSession] = useState(null);
-  useFocusEffect(useCallback(() => () => setSession(null), []));
-  const { assignment, questions } = content;
+  const [run, setRun] = useState(null);
+  const [controls] = useState(() => createPracticeRun({ questions: content.questions, verify, random: Math.random, onChange: setRun }));
+  useFocusEffect(useCallback(() => {
+    controls.enter();
+    return () => controls.leave();
+  }, [controls]));
+  const session = run?.session;
+  const assignment = content.assignment;
+  const questions = run?.questions || content.questions;
   const question = session && !session.finished ? questions[session.index] : null;
   const summary = session ? summarizeSession(session) : null;
   return (
@@ -89,16 +101,16 @@ function Practice({ demo = false, loadedContent, verify = async () => true }) {
       </> : !session ? <>
         <Text accessibilityRole="header" style={styles.title}>Jouons avec les mots !</Text>
         <Text style={styles.body}>Lis une définition et choisis le mot qui correspond. Tu peux essayer une deuxième fois.</Text>
-        <Pressable accessibilityRole="button" style={styles.button} onPress={async () => { if (await verify()) setSession(createSession(questions)); }}><Text style={styles.buttonText}>C’est parti !</Text></Pressable>
+        <Pressable accessibilityRole="button" style={styles.button} onPress={() => controls.start()}><Text style={styles.buttonText}>C’est parti !</Text></Pressable>
       </> : session.finished ? <>
         <Text accessibilityRole="header" style={styles.title}>Bravo pour tes efforts !</Text>
         <Text style={styles.body}>Tu as exploré {summary.completed} mots. Chaque essai t’aide à apprendre.</Text>
         <Text style={styles.body}>{summary.incorrectAfterTwoAttempts ? 'Certains mots se découvrent petit à petit. Tu pourras les revoir tranquillement.' : 'Tu as trouvé tous les mots, parfois avec un deuxième essai. Continue comme ça !'}</Text>
-        <Pressable accessibilityRole="button" style={styles.button} onPress={async () => { if (await verify()) setSession(createSession(questions)); }}><Text style={styles.buttonText}>Rejouer</Text></Pressable>
+        <Pressable accessibilityRole="button" style={styles.button} onPress={() => controls.start()}><Text style={styles.buttonText}>Rejouer</Text></Pressable>
       </> : <VocabularyQuestion key={question.id} question={resolveVocabularyQuestion(question, assignment)} response={session.responses[question.id]}
         number={session.index + 1} total={questions.length}
-        onSubmit={async selected => { if (await verify()) setSession(current => current ? submitAnswer(current, question, selected) : current); }}
-        onNext={async () => { if (await verify()) setSession(current => current ? advanceSession(current, question.id) : current); }} />}
+        onSubmit={selected => controls.submit(run, question, selected)}
+        onNext={() => controls.advance(run, question.id)} />}
       <Link href="/" style={styles.link}>Retour à l’accueil</Link>
     </Screen>
   );

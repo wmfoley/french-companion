@@ -6,6 +6,7 @@ const { createHouseholdService } = require('../src/services/householdService');
 const { createPinCredential } = require('../src/services/parent/pinCredential');
 const { evaluatePracticeEligibility, validPolicy, STRICT, INDEPENDENT } = require('../src/core/assignments/practiceEligibility');
 const { generateVocabularyQuestions } = require('../src/core/exercises/vocabularyMultipleChoice');
+const { createPracticeRun } = require('../src/core/sessions/practiceRun');
 
 const clone = value => JSON.parse(JSON.stringify(value));
 function pending() { return { ...clone(fixture), id: 'household-lesson' }; }
@@ -27,6 +28,32 @@ function harness() {
   const service = createHouseholdService({ store, credential, now: () => time });
   return { service, store, credential, advance: ms => { time += ms; }, fail: value => { fail = value; }, state: () => clone(state) };
 }
+
+test('randomized runs enforce current household policy at start and every response transition', async () => {
+  const h = harness(); await h.service.setup('123456', '123456');
+  await h.service.submitAssignment(pending());
+  assert.equal((await h.service.readPractice('household-lesson')).eligibility.eligible, false);
+  const token = await h.service.unlock('123456');
+  await h.service.setPracticePolicy(token, { expectedRevision: 1, practiceMode: INDEPENDENT, acknowledgeRisk: true });
+  const allowed = await h.service.readPractice('household-lesson');
+  const questions = generateVocabularyQuestions(allowed.document.assignment, { householdPolicy: allowed.policy }).questions;
+  let run = null; let draws = 0;
+  const controls = createPracticeRun({ questions, verify: async () => (await h.service.readPractice('household-lesson')).eligibility.eligible,
+    random: () => { draws++; return 0.5; }, onChange: next => { run = next; } });
+  controls.enter();
+  await h.service.setPracticePolicy(token, { expectedRevision: 2, practiceMode: STRICT });
+  assert.equal(await controls.start(), false); assert.equal(draws, 0);
+  await h.service.setPracticePolicy(token, { expectedRevision: 3, practiceMode: INDEPENDENT, acknowledgeRisk: true });
+  assert.equal(await controls.start(), true); const snapshot = run; const question = run.questions[0];
+  await h.service.setPracticePolicy(token, { expectedRevision: 4, practiceMode: STRICT });
+  assert.equal(await controls.submit(snapshot, question, question.targetItemId), false);
+  assert.equal(await controls.advance(snapshot, question.id), false);
+  assert.equal(run, snapshot); assert.deepEqual(run.session.responses, {});
+  const stored = h.state().assignments[0];
+  assert.equal(stored.assignment.reviewStatus, 'pending_review'); assert.equal(stored.approval, null);
+  assert.deepEqual(stored.assignment.sources, pending().sources);
+  controls.leave();
+});
 
 test('setup is atomic, single-installation and strict by default', async () => {
   const h = harness();

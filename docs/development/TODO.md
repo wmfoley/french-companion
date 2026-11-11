@@ -41,6 +41,21 @@ FC-002 handoff originally required parent acceptance before practice. ADR-0002/F
 
 Recommended next milestone: plan local parent review/approved-lesson loading and Android household validation before adding another exercise type. Preserve the development demo exception separately from actual parent approval.
 
+## FC-003A — Practice Randomization
+**Status:** Implemented and owner-accepted on physical Android 12 (2026-11-11), including randomization, stable retries/background-resume, completion celebration, replay/reset and strict/independent policy revocation/re-entry. Final review: 108 tests, lint and web export pass; latest Expo dependency check fails because eight newer SDK 58 patches are recommended. Dependencies remain identical to accepted baseline 0c1cda7. Owner explicitly accepted this baseline dependency exception for FC-003A and authorized the milestone commit on 2026-11-11. Patch maintenance is deferred separately; do not upgrade or suppress the check here. Full results are in the development log.
+- [x] Pure injectable Fisher–Yates presentation shuffle; copy definitions/options, preserve source ordering, IDs, target associations and distractor membership.
+- [x] One authorized presentation per run; stable retries/rerenders/advancement, fresh replay and response reset for household and development demo paths.
+- [x] Pending-action guard and visit/run identities; late authorization cannot publish after leaving or replace a newer run.
+- [x] Deterministic permutation/immutability, lifecycle/outcome and household-policy regression tests; browser coverage expanded.
+- [x] Execute full tests, lint, Expo dependency check, export and browser verification; preserve exact pass/fail results in the development log.
+- [x] Owner explicitly accepted the unchanged-baseline Expo dependency-check exception; no dependency upgrade or suppression in FC-003A.
+- [x] Owner physical Android acceptance: all planned scenarios passed; detailed results recorded in TEST_PLAN.md. No native APK/build required for FC-003A.
+- [x] Owner authorized one local milestone commit after physical acceptance and final review; push remains unauthorized.
+
+## Maintenance — deferred Expo SDK 58 patch alignment
+
+- [ ] Review and plan the eight patch recommendations separately from FC-003A: expo 58.0.23 → ~58.0.24; expo-constants 58.0.15 → ~58.0.16; expo-crypto 58.0.7 → ~58.0.8; expo-dev-client 58.0.18 → ~58.0.19; expo-linking 58.0.16 → ~58.0.17; expo-router 58.0.30 → ~58.0.31; expo-secure-store 58.0.2 → ~58.0.3; expo-sqlite 58.0.15 → ~58.0.16.
+- [ ] Obtain separate upgrade approval, reassess current compatible versions, native development-APK requirements and regression scope before installing anything. Retain the dependency check; FC-003A accepts its current failure because manifests match accepted baseline 0c1cda7.
 ## Remaining core exercise types — future tickets
 - [ ] Matching pairs, spelling-error identification, fill-in-the-blank and grammar transformation.
 - [ ] Per-exercise grading policies, reviewed keys and hints; plan one type at a time.
