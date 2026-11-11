@@ -1,0 +1,20 @@
+# Build upload boundary. Git-ignored worktree source under modules/ must remain included.
+.git/
+.codex/
+.agents/
+.aws/
+.vscode/
+node_modules/
+.expo/
+dist/
+dist-android/
+coverage/
+.env*
+!.env.example
+/android/
+/ios/
+*.jks
+*.keystore
+credentials.json
+*.apk
+*.aab

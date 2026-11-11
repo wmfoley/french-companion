@@ -1,5 +1,5 @@
 const ITERATIONS = 600000;
-function createPinCredential(crypto) {
+function createPinCredential(crypto, engine) {
   const check = pin => { if (typeof pin !== 'string' || !/^\d{6}$/.test(pin)) throw new Error('Use exactly six digits.'); };
   function valid(record) {
     return Boolean(record && record.algorithm === 'PBKDF2-SHA256' && record.iterations === ITERATIONS &&
@@ -7,17 +7,20 @@ function createPinCredential(crypto) {
   }
   const hex = bytes => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
   async function derive(pin, salt) {
+    if (engine) return engine.derive(pin, salt, ITERATIONS);
     if (!crypto?.subtle || !crypto?.getRandomValues) throw new Error('Secure local PIN setup requires Web Crypto on localhost or HTTPS.');
     const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
     return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' }, material, 256));
   }
   return {
     valid,
-    async create(pin) {
+    async create(pin, trace) {
       check(pin);
-      if (!crypto?.getRandomValues) throw new Error('Secure local PIN setup is unavailable.');
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      return { algorithm: 'PBKDF2-SHA256', iterations: ITERATIONS, salt: hex(salt), verifier: hex(await derive(pin, salt)) };
+      if (!engine && !crypto?.getRandomValues) throw new Error('Secure local PIN setup is unavailable.');
+      const span = (stage, action) => trace ? trace.span(stage, action) : action();
+      const salt = await span('randomness', () => engine ? engine.randomBytes(16) : crypto.getRandomValues(new Uint8Array(16)));
+      const derived = await span('pbkdf2', () => derive(pin, salt));
+      return { algorithm: 'PBKDF2-SHA256', iterations: ITERATIONS, salt: hex(salt), verifier: hex(derived) };
     },
     async verify(pin, record) {
       check(pin);

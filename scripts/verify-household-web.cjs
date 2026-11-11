@@ -67,7 +67,7 @@ try {
   await call('Page.navigate', { url: 'http://127.0.0.1:8082' });
   await expectText('Bienvenue !');
   async function clickText(text) {
-    const found = await evaluate(`(() => { const el = [...document.querySelectorAll('[role="button"],a')].find(el => el.innerText === ${JSON.stringify(text)}); if (!el || el.getAttribute('aria-disabled') === 'true') return false; el.click(); return true; })()`);
+    const found = await evaluate(`(() => { const el = [...document.querySelectorAll('[role="button"],a')].find(el => el.innerText === ${JSON.stringify(text)} && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden'); if (!el || el.getAttribute('aria-disabled') === 'true') return false; el.click(); return true; })()`);
     if (!found) throw Error('Missing enabled action: ' + text);
     await wait(150);
   }
@@ -75,7 +75,28 @@ try {
     await evaluate(`(() => { const el = document.querySelector('input[aria-label=${JSON.stringify(label)}]'); if (!el) throw Error('Missing input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input',{bubbles:true})); })()`);
     await wait(100);
   }
-  const moduleFiles = ['src/services/localHousehold.web.js','src/services/householdService.js','src/services/storage/indexedDbStore.js','src/services/parent/pinCredential.js','src/core/assignments/normalizeAssignment.js','src/core/assignments/validateAssignment.js','src/core/assignments/practiceEligibility.js'];
+  async function verifyPinFields(labels) {
+    const valid = await evaluate(`(() => {
+      const luminance = color => {
+        const rgb = color.match(/\\d+/g).slice(0,3).map(Number).map(value => {
+          const channel = value / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      return ${JSON.stringify(labels)}.every(label => {
+        const input = [...document.querySelectorAll('input')].find(el => el.getAttribute('aria-label') === label && el.getClientRects().length);
+        if (!input || input.type !== 'password' || input.maxLength !== 6 || input.inputMode !== 'numeric') return false;
+        const style = getComputedStyle(input);
+        const placeholder = getComputedStyle(input, '::placeholder');
+        const background = luminance(style.backgroundColor);
+        const contrast = color => (Math.max(background, luminance(color)) + 0.05) / (Math.min(background, luminance(color)) + 0.05);
+        return style.color === 'rgb(36, 59, 51)' && contrast(style.color) >= 4.5 && contrast(placeholder.color) >= 4.5 && contrast(style.caretColor) >= 3;
+      });
+    })()`);
+    if (!valid) throw Error('Secure PIN field configuration/contrast regression');
+  }
+  const moduleFiles = ['src/services/localHousehold.web.js','src/services/householdService.js','src/services/storage/indexedDbStore.js','src/services/parent/pinCredential.js','src/core/assignments/normalizeAssignment.js','src/core/assignments/validateAssignment.js','src/core/assignments/practiceEligibility.js','src/content/developmentSample.js','src/content/fixtures/grade4-reference.json'];
   const sources = Object.fromEntries(moduleFiles.map(file => [file, fs.readFileSync(file, 'utf8')]));
   async function inOtherTab(expression) {
     const { targetId } = await call('Target.createTarget', { url: 'http://127.0.0.1:8082' });
@@ -96,14 +117,15 @@ try {
       return result.result.result.value;
     } finally { other.close(); await call('Target.closeTarget', { targetId }); await call('Page.bringToFront'); }
   }
-  const loaderSource = `const sources=${JSON.stringify(sources)};const cache={};function load(name){if(cache[name])return cache[name].exports;const module={exports:{}};cache[name]=module;new Function('require','module','exports',sources[name])(ref=>load(new URL(ref+'.js','https://test/'+name).pathname.slice(1)),module,module.exports);return module.exports;}const testService=load('src/services/localHousehold.web.js').localHousehold;`;
+  const loaderSource = `const sources=${JSON.stringify(sources)};const cache={};function load(name){if(name.endsWith('.json'))return JSON.parse(sources[name]);if(cache[name])return cache[name].exports;const module={exports:{}};cache[name]=module;new Function('require','module','exports',sources[name])(ref=>load(new URL(ref.endsWith('.json')?ref:ref+'.js','https://test/'+name).pathname.slice(1)),module,module.exports);return module.exports;}const testService=load('src/services/localHousehold.web.js').localHousehold;`;
   async function inject() {
     await evaluate(`(() => {
       const sources = ${JSON.stringify(sources)}; const cache = {};
       window.testLoad = function load(name) {
+        if (name.endsWith('.json')) return JSON.parse(sources[name]);
         if (cache[name]) return cache[name].exports;
         const module = { exports:{} }; cache[name] = module;
-        new Function('require','module','exports',sources[name])(ref => load(new URL(ref + '.js', 'https://test/' + name).pathname.slice(1)), module, module.exports);
+        new Function('require','module','exports',sources[name])(ref => load(new URL(ref.endsWith('.json') ? ref : ref + '.js', 'https://test/' + name).pathname.slice(1)), module, module.exports);
         return module.exports;
       };
       window.testService = window.testLoad('src/services/localHousehold.web.js').localHousehold;
@@ -112,10 +134,12 @@ try {
   await inject();
   await clickText('Parent Area');
   await expectText('Save household setup');
+  await verifyPinFields(['New six-digit parent PIN', 'Confirm parent PIN']);
   await fill('New six-digit parent PIN', '123456');
   await fill('Confirm parent PIN', '123456');
   await clickText('Save household setup');
   await expectText('Setup saved.');
+  await verifyPinFields(['Parent PIN']);
   await fill('Parent PIN', '123456');
   await clickText('Unlock Parent Area');
   await expectText('Saved policy: Parent approval required');
@@ -194,8 +218,36 @@ try {
   await clickText('C’est parti !');
   await expectText('Question 1 sur 5');
   await expectText('Démo — contenu en attente de validation');
+  await clickText('Retour à l’accueil');
+  await expectText('Bienvenue !');
+  await clickText('Parent Area');
+  await expectText('Save household setup');
+  await fill('New six-digit parent PIN', '123456');
+  await fill('Confirm parent PIN', '123456');
+  await clickText('Save household setup');
+  await expectText('Setup saved.');
+  await fill('Parent PIN', '123456');
+  await clickText('Unlock Parent Area');
+  await expectText('Load development sample');
+  await clickText('Load development sample');
+  await expectText('Development sample loaded, still pending review.');
+  await clickText('Allow independent practice');
+  await evaluate(`document.querySelector('[role="checkbox"]').click()`);
+  await clickText('Save practice policy');
+  await expectText('Saved policy: Independent practice allowed');
+  await clickText('Return to student home');
+  await expectText('Bienvenue !');
+  await clickText('Commencer à pratiquer');
+  await expectText('Exemple de développement — vocabulaire');
+  await clickText('Exemple de développement — vocabulaire');
+  await expectText('Exemple de développement — ne constitue pas une leçon approuvée');
+  await clickText('C’est parti !');
+  await expectText('Question 1 sur 5');
+  await call('Page.navigate', { url: 'http://127.0.0.1:8082/native-pbkdf2' });
+  await expectText('Unavailable here. Use the Android development build.');
+  if (await evaluate(`document.body.innerText.includes('Run public vector:')`)) throw Error('Native proof exposed on production web');
   if (errors.length) throw Error(JSON.stringify(errors));
-  console.log('PASS FC-004: setup/default strict, risk opt-in, persistent pending practice, protected direct commands, IndexedDB failure rollback/concurrency, stale policy writes, live revocation, reload/leave locking, wrong PIN, production demo exclusion and development demo regression; no runtime/console errors.');
+  console.log('PASS FC-004/FC-004N: setup/default strict, risk opt-in, persistent pending practice, protected direct commands, IndexedDB failure rollback/concurrency, stale policy writes, live revocation, reload/leave locking, wrong PIN, production demo exclusion, development demo regression and protected labelled sample practice; no runtime/console errors.');
   await call('Browser.close');
 } finally {
   socket?.close();

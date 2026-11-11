@@ -1,6 +1,14 @@
 node_modules/
 .expo/
 dist/
+dist-android/
+/android/
+/ios/
+*.jks
+*.keystore
+credentials.json
+*.apk
+*.aab
 coverage/
 .env*
 !.env.example

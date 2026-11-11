@@ -21,7 +21,7 @@ function generateVocabularyQuestions(input, { mode = 'practice', development = f
   if (!['practice', 'demo'].includes(mode) || !Number.isInteger(seed)) throw new TypeError('Invalid generation options.');
   // Development capability is supplied by the application build, never a route parameter.
   const demo = mode === 'demo' && development === true && assignment.id === 'grade4-reference-001' && assignment.reviewStatus === 'pending_review';
-  const eligibility = evaluatePracticeEligibility({ assignmentDocument: { storageVersion: 1, contentRevision, purpose, assignment, approval }, householdPolicy });
+  const eligibility = evaluatePracticeEligibility({ assignmentDocument: { storageVersion: 1, contentRevision, purpose, assignment, approval }, householdPolicy, development });
   if ((mode === 'demo' && !demo) || (!demo && !eligibility.eligible)) {
     return { questions: [], diagnostics: [{ code: 'approval_required' }] };
   }

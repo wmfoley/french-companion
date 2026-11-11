@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { StyleSheet, Text } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import Screen from '../src/components/Screen';
 
 export default function HomeScreen() {
@@ -10,6 +10,7 @@ export default function HomeScreen() {
       <Link href="/practice" style={styles.link}>Commencer à pratiquer</Link>
       {__DEV__ && <Link href="/practice?mode=demo" style={styles.demo}>Démo — contenu en attente de validation</Link>}
       <Link href="/parent" style={styles.demo}>Parent Area</Link>
+      {__DEV__ && Platform.OS === 'android' && <Link href="/native-pbkdf2" style={styles.demo}>Native PBKDF2 development proof</Link>}
     </Screen>
   );
 }

@@ -1,6 +1,34 @@
 # French Companion
 
-**Status:** FC-004 adds web-only local Parent Area, PIN authorization, IndexedDB persistence and household practice policy. The reference fixture remains development-only, pending review and unverified against the original worksheet. No remote resources created.
+**Status:** FC-004N adds Android SQLite persistence and SecureStore-backed PIN credentials to the shared local household service. Web retains IndexedDB. Automated checks and exports are separate from pending physical Android acceptance. The reference fixture remains development-only, pending review and unverified against the original worksheet. No remote resources created.
+
+## Current Android development-client acceptance
+
+Owner-reported Android 12 testing confirms PIN creation, correct/incorrect PIN handling, restart persistence, fresh authentication after restart, navigation/background locking, visible PIN masking, inactivity expiration/renewal, and persistence of both household policies. Earlier pending notes below describe historical milestone status. See the [current acceptance checklist](docs/development/ANDROID_HOUSEHOLD_ACCEPTANCE_FC004N_2B.md) for remaining device checks.
+
+In this repository's terminal-local Node environment, reconnect to the installed development APK with:
+
+```powershell
+$env:APP_VARIANT = 'development'
+npx.cmd expo start --dev-client --lan --scheme french-companion-dev
+```
+
+The Metro URL scheme must match the installed French Companion Dev APK. Use the newly generated QR on the same LAN; check the current IP/port and Windows firewall if connection fails. A previous `Android Bundled` entry is not evidence of a current connection. The owner resolved the launch issue without reinstalling or clearing data. JavaScript changes use Metro; native changes require separately approved APK builds.
+## FC-004N Android / Expo Go
+
+**FC-004N.2B integration:** Owner reports eight successful native proof runs on Android 12 at approximately 3.6–3.7 seconds. Android household derivation now requires the extended native module; there is no JS fallback. The old proof-only APK/Expo Go stays launchable but cannot authenticate. A new development APK needs separate build/upload approval; preserve the same package/signing identity and update without clearing data. Follow the [exact household acceptance sequence](docs/development/ANDROID_HOUSEHOLD_ACCEPTANCE_FC004N_2B.md). Web WebCrypto and the stored credential format are preserved. Earlier proof-only notes below describe their milestone boundary.
+
+**FC-004N.2A proof prepared:** Android 12 is confirmed. A separate **French Companion Dev** APK profile and storage-free native PBKDF2 proof are ready locally, but no EAS build/upload or native runtime verification has occurred. Household PIN code remains unchanged. See [exact account, build, APK install and test steps](docs/development/NATIVE_PBKDF2_POC_FC004N_2A.md). Build/upload and later household integration each need separate approval. Expo Go/data stay intact.
+
+**FC-004N.1 diagnostic status:** Physical PIN setup remained busy for several minutes while navigation worked. Root cause is unknown; Android acceptance is paused. Use the [safe diagnostic run instructions](docs/development/ANDROID_PIN_DIAGNOSTICS_FC004N_1.md) to launch, read the development-only on-device stage panel/console and capture the next run. No cryptographic parameters or existing data are changed by this diagnostic correction.
+
+See [ADR-0003](docs/decisions/ADR-0003.md) and the [physical tablet acceptance checklist](docs/development/ANDROID_ACCEPTANCE_FC004N.md). Expo SQLite, SecureStore and Crypto support Expo Go; no SQLCipher or biometrics are enabled. After terminal-local fnm initialization and `npm.cmd ci`, run `npm.cmd start` and scan its QR code in a compatible Expo Go installation on the same network. Household data belongs to that installation/project; web and Android do not sync.
+
+Supervise first setup. The six-digit PIN is derived using asynchronous PBKDF2-SHA256 (600,000 iterations); only salt/parameters/verifier are stored in SecureStore, never plaintext. Unlock shows a busy message and rejects concurrent verification. Development builds display total successful unlock duration (PIN derivation plus storage): record cold/warm tablet timings rather than relying on desktop measurements. Five minutes of parent inactivity, leaving Parent Area or backgrounding locks access; polling does not renew it.
+
+Use **Load development sample** inside the unlocked Parent Area to explicitly load pending, unverified reference content. Strict mode blocks it. A parent may explicitly acknowledge risk and enable independent practice to test the labelled sample; practice never approves it or upgrades fidelity. Production service/generator paths reject this sample. No assignment intake or FC-005 review UI exists yet.
+
+SQLite writes are transactional and revision checked. Missing/mismatched credentials or interrupted setup remain locked with data preserved. There is no PIN reset/recovery UI; do not clear all Expo Go data as a repair. SQLite content is not encrypted by this app. Device administrators, modified code or developer tools can bypass a local child-facing gate; this is not account authentication. Earlier FC-004/FC-001 results below describe those milestones at completion; ADR-0003 governs the current native implementation.
 
 ## Quick start
 1. Create a **new, empty private GitHub repository** `french-companion` and clone it to a separate local folder. Do not open the equipment-planning repository in this VS Code window.

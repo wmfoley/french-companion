@@ -57,11 +57,51 @@ Recommended next milestone: plan local parent review/approved-lesson loading and
 - [ ] Native adapter implementation and Android verification (required before enabling native household practice; not claimed complete by FC-004).
 
 ## FC-005 — Parent review, acceptance and student integration
+FC-004N precedes this milestone and has now received formal owner acceptance on Android 12. Plan FC-005 separately before implementation.
 - [ ] Detailed item review and provenance-preserving corrections; original source excerpts never overwritten.
 - [ ] Reviewed approval plus separately labelled Approve All with explicit risk acknowledgement; both revision-bound, neither establishes source authenticity.
 - [ ] Renew acceptance after substantive educational edits; parent guidance and household validation. Independent households must not require approval for each eligible assignment.
 - [ ] Define minimal local intake/lesson-management UI separately; FC-004 exposes only a protected/narrow service foundation.
 - [ ] Validate with at least two additional worksheets before AI/OCR.
+
+## FC-004N — Android persistence and parent authorization
+**Historical blocker (resolved by FC-004N.2B):** slow JavaScript PBKDF2 prompted diagnostics, native proof and validated Android provider integration. Household authentication and final practice-policy checks are now owner-accepted on Android 12.
+**Status:** Complete and formally accepted by the owner on Android 12 through FC-004N.2B; automated and prior web regression results are recorded in the development log. Native authentication requires French Companion Dev, not Expo Go.
+- [x] Expo SQLite adapter behind the shared storage interface; transaction rollback, revision checks and no credential verifier in SQLite.
+- [x] SecureStore-bound salted verifier; Expo Crypto randomness and asynchronous Noble PBKDF2 with unchanged parameters.
+- [x] Interrupted initialization/credential mismatch fail closed with retained data; no automatic reset.
+- [x] True five-minute parent inactivity on both platforms; explicit interaction refresh, leaving/background lock and concurrent verification guard.
+- [x] Parent-authorized, pending development sample; production service/generator exclusion and unchanged source model.
+- [x] Native adapter/service tests, web regressions, dependency check, lint and both platform exports.
+- [x] Complete owner-reported Android 12 development-client proof, household authentication, background/restart and policy/practice acceptance. Expo Go native authentication is deliberately unavailable; detailed proof timings remain in the log.
+- [ ] Screen-reader/device accessibility acceptance remains a separate manual check.
+
+### FC-004N.1 — PIN setup diagnostics and lifecycle safeguards
+- [x] Development-only, bounded, secret-free stage timings; on-device panel and console capture instructions.
+- [x] Service setup guard and focus/operation identity; cancellation before first household write; complete strict binding after persistence starts.
+- [x] Deferred-promise, concurrency, late completion, diagnostic bounds and partial-initialization regression tests.
+- [x] Owner captured operation-1 PBKDF2 slow warnings at 10/30/60 seconds with no completion; Android 12 confirmed. No credential-engine replacement implemented.
+
+### FC-004N.2A — native PBKDF2 proof / development-build preparation
+- [x] Verified pre-change local history/worktree checkpoint without committing; retain FC-004N/FC-004N.1 changes.
+- [x] Separate explicit development identity, internal APK EAS profile and upload exclusions; SDK-compatible dev client.
+- [x] Debug/API-26+ local Android module, platform PBKDF2 on a background dispatcher, fixed public vectors only; no credential/storage integration.
+- [x] Storage-free test UI and automated vector/controller/config tests; local checks recorded in development log.
+- [x] Account/build/install/device/recovery instructions prepared; no accounts/EAS project/build/upload created.
+- [x] Owner subsequently built/installed the proof APK and reports both vectors passed four runs each on Android 12; native ~3.6–3.7 seconds, round trip comparable. These are owner-reported results.
+
+### FC-004N.2B — household native PBKDF2 integration
+**Final acceptance:** Owner formally accepts FC-004N.2B: authentication, credential/policy persistence, restart/navigation/background locking, masking, inactivity expiry/renewal, development sample loading, strict/independent practice, strict-policy revocation and assignment retention all passed on Android 12.
+- [x] Owner reports physical setup and saved-PIN unlock succeed without prolonged PBKDF2 delay. PIN-dot visibility correction also passed physical acceptance.
+- [x] Fixed-parameter native household method and capability probe; retained public proof shares the same worker helper.
+- [x] Native credential adapter with no JS fallback; missing/old/unsupported native APIs fail closed with clear messaging.
+- [x] Preserve hex format, randomness, binding/recovery, service concurrency/cancellation and parent focus guards; unchanged web composition.
+- [x] Tests and local verification recorded in development log; physical acceptance procedure prepared.
+- [x] Owner subsequently installed and physically tested the updated integration APK. No new build/upload is requested or authorized here.
+- [x] Owner verified household creation, saved PIN, restart, lifecycle, masking and both policy persistence on Android; existing data retained.
+- [x] Owner confirms sample loading, strict/independent practice eligibility, strict-policy revocation and assignment retention throughout policy changes; final milestone acceptance granted.
+
+Owner reports FC-003 automated and human acceptance on web and a physical Android device, and FC-004 web human acceptance. Earlier milestone notes above describe verification available at their completion.
 
 ## Later — Dictation, mixed practice and progress
 - [ ] Speech adapter and audio fallback; dictation answer hidden until submission.

@@ -1,0 +1,20 @@
+{
+  "description": "Public synthetic full-parameter vectors; expected outputs independently computed with Node crypto, checked with WebCrypto. Never household credentials.",
+  "iterations": 600000,
+  "saltBytes": 16,
+  "verifierBytes": 32,
+  "vectors": [
+    {
+      "id": "digits",
+      "password": "123456",
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "expectedHex": "93922e39f17be3ac82ee49e41b689b2f825ffcb9b18c64406350c92b4fa3c59c"
+    },
+    {
+      "id": "leading-zero",
+      "password": "000001",
+      "saltHex": "f0e0d0c0b0a090807060504030201000",
+      "expectedHex": "edad9fa41628feccd449a4172932c06e7f3a1a1bd9b11a3a65a4aa43e86154fb"
+    }
+  ]
+}

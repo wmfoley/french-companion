@@ -1,0 +1,11 @@
+{
+  "cli": { "requireCommit": false },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "APP_VARIANT": "development" },
+      "android": { "buildType": "apk" }
+    }
+  }
+}

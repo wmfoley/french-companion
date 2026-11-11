@@ -1,8 +1,9 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 
-export default function Screen({ children }) {
+export default function Screen({ children, onInteraction }) {
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScrollView contentContainerStyle={styles.page} onTouchStart={onInteraction} onScrollBeginDrag={onInteraction}
+      {...(Platform.OS === 'web' && onInteraction ? { onPointerDownCapture: onInteraction, onKeyDownCapture: onInteraction } : {})}>
       <View style={styles.content}>{children}</View>
     </ScrollView>
   );

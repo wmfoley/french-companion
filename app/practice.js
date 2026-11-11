@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text } from 'react-native';
 import Screen from '../src/components/Screen';
 import VocabularyQuestion from '../src/components/VocabularyQuestion';
 import referenceAssignment from '../src/content/fixtures/grade4-reference.json';
@@ -29,6 +29,10 @@ function HouseholdPractice({ assignmentId }) {
     } catch { if (active.current) setError('La pratique est en pause. La politique du foyer a changé ou les données locales sont indisponibles.'); }
     return false;
   }, [assignmentId]);
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', state => { if (state === 'active' && assignmentId && baseline.current) verify(); });
+    return () => listener.remove();
+  }, [assignmentId, verify]);
   useFocusEffect(useCallback(() => {
     active.current = true;
     setError(''); setContent(null);
@@ -42,9 +46,9 @@ function HouseholdPractice({ assignmentId }) {
         const result = await localHousehold.readPractice(assignmentId);
         if (!result.eligibility.eligible) throw new Error('Cette leçon attend une autorisation selon la politique du foyer.');
         baseline.current = result.document.contentRevision;
-        const generated = generateVocabularyQuestions(result.document.assignment, { householdPolicy: result.policy, approval: result.document.approval,
+        const generated = generateVocabularyQuestions(result.document.assignment, { householdPolicy: result.policy, approval: result.document.approval, development: __DEV__,
           contentRevision: result.document.contentRevision, purpose: result.document.purpose });
-        if (active.current) setContent({ assignment: result.document.assignment, eligibility: result.eligibility, ...generated });
+        if (active.current) setContent({ assignment: result.document.assignment, purpose: result.document.purpose, eligibility: result.eligibility, ...generated });
       } catch (failure) { if (active.current) setError(failure.message); }
     }
     load();
@@ -77,6 +81,7 @@ function Practice({ demo = false, loadedContent, verify = async () => true }) {
   return (
     <Screen>
       {demo && <Text accessibilityRole="header" style={styles.banner}>Démo — contenu en attente de validation</Text>}
+      {content.purpose === 'development_sample' && <Text style={styles.banner}>Exemple de développement — ne constitue pas une leçon approuvée</Text>}
       {content.eligibility?.requiresUnreviewedNotice && <Text style={styles.banner}>Cette leçon n’a pas encore été vérifiée par un parent.</Text>}
       {!questions.length ? <>
         <Text accessibilityRole="header" style={styles.title}>Ta leçon se prépare</Text>

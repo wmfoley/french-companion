@@ -1,6 +1,24 @@
 # Test and Acceptance Plan — v0.1
 
-## FC-001
+Current native acceptance is tracked separately in [ANDROID_ACCEPTANCE_FC004N.md](ANDROID_ACCEPTANCE_FC004N.md); earlier sections below retain their milestone scope.
+
+## FC-004N verification boundary
+
+FC-004N.2B adds native engine integration tests with a Node crypto stand-in, clearly not Android execution: old/missing/API-unsupported module, correct/wrong PIN, public and legacy/WebCrypto credential compatibility, strict input/output lengths, sanitized errors, concurrency, deferred setup/unlock cancellation, no storage access on unavailability, actual shared-credential serialization through Node SQLite/SecureStore simulation. Existing partial-initialization/focus/strict-policy tests remain. The retained public proof now shares the Kotlin derivation helper. Run [physical household acceptance](ANDROID_HOUSEHOLD_ACCEPTANCE_FC004N_2B.md) only after separately approved APK rebuild; native correctness is not established by Node tests or JS exports.
+
+FC-004N.2A adds `tests/nativePbkdf2Proof.test.js`: full 600,000-iteration public vectors independently checked by Node PBKDF2 and WebCrypto, missing-module/web/production gates, concurrency through settlement, sanitized metadata/failures, explicit config identity and EAS upload ignore boundaries preserving native source. Expo autolinking must discover the module. Web and Android JS exports/lint/dependency checks remain required. No Kotlin/native correctness claim follows from Node/export tests: [physical proof checklist](NATIVE_PBKDF2_POC_FC004N_2A.md) and separately approved EAS APK build are the next gates. Household setup/verification files must match the pre-change checkpoint.
+
+FC-004N.1 adds `tests/setupLifecycle.test.js` plus native deferred-ID/SecureStore tests: setup concurrency survives navigation/unresolved promises, pre-write cancellation rolls back, started persistence completes strict binding without unlock, retries wait for settlement, focus IDs suppress late success/failure/finally, diagnostic observers cannot affect setup, buffers/timers are bounded, production emits nothing, and derivation parameters remain unchanged. Follow [physical diagnostics](ANDROID_PIN_DIAGNOSTICS_FC004N_1.md); runtime compatibility remains unproven by these tests.
+
+- Run `npm.cmd test`, `npm.cmd run lint`, `npx.cmd expo install --check`, `npm.cmd run export:web`, and `npx.cmd expo export --platform android --output-dir dist-android` under terminal-local Node 22.
+- `tests/nativeHousehold.test.js` runs adapter SQL against Node SQLite using an Expo-shaped connection, with simulated SecureStore. Cover transaction rollback/failed saves, strict fallback for corrupt/unsupported policy, interrupted two-store initialization before/after secret save, orphan/missing/corrupt/mismatched credentials, recreation/restart lock, direct unauthorized commands, stale revisions, policy revocation and sample restrictions. These tests do not run Android native bridges or Keystore.
+- Test authenticated activity extends expiry; polling does not; expired capabilities cannot refresh; explicit lock/background-equivalent cancellation rejects in-flight unlock and concurrent verification. Native UI lifecycle dispatch requires tablet acceptance.
+- Execute actual asynchronous native JavaScript PBKDF2 at the approved 600,000 iterations against Web Crypto for correct/incorrect PINs and both credential directions. Desktop timing is diagnostic only; tablet timing is required separately.
+- `node scripts/verify-household-web.cjs` checks real IndexedDB/Web Crypto, direct authorization, rollback, stale writes/two-tab revocation, setup/PIN/lifecycle and existing learning flows. Development checks add explicit protected sample loading, risk acknowledgement and labelled sample practice. Production excludes the demo/sample pathways.
+- Physical checklist covers Expo Go module availability, setup/busy/concurrency, repeated unlock timings, sample strict/independent flow, restart persistence, background/leaving locks, five idle minutes and genuine interaction renewal. Record device/OS/Expo Go versions and all untested failure paths.
+- Preserve assignment schema/source fixture, original accent-sensitive grader and FC-003 attempt/outcome behaviour. No FC-005 approval, correction or Approve All commands added.
+
+## FC-001 historical checklist
 1. Web preview launches without exceptions.
 2. Pure JS grader accepts `crise` when expected `crise`.
 3. Grader rejects `crize` and identifies incorrect spelling.

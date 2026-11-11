@@ -2,7 +2,15 @@
 
 Expo-first runtime approved through ADR-0001 on 2026-11-10; future integrations remain deferred.
 
+## FC-004N current platform boundary
+
+[ADR-0003](../decisions/ADR-0003.md) supersedes native deferral in the earlier FC-004 descriptions below. Native composes the same household service with transactional Expo SQLite and a SecureStore-bound credential record; web retains IndexedDB/Web Crypto. SQLite contains existing versioned assignment envelopes, policy and revisions, not PIN credentials. Interrupted initialization and missing/mismatched credentials remain locked without resetting data. No assignment schema change.
+
+Both platforms use five-minute inactivity expiration, refreshed only by authenticated parent interaction; leaving Parent Area or backgrounding locks and cancels pending unlocks. Practice rechecks persisted policy on resume, transitions and polling. A parent-only development sample command preserves pending review/source fidelity and is excluded by production service and generator checks. Native export/adapter tests do not substitute for physical Expo Go acceptance; see the Android checklist. FC-005 acceptance/corrections, FC-003A, mixed sprints and optional parent-controlled, disabled-by-default CURR-001 remain future work.
+
 ## Runtime
+FC-004N.2B/[ADR-0005](../decisions/ADR-0005.md) now connects Android household creation/verification to the platform PBKDF2 module on a background dispatcher, with fixed parameters and no JS fallback. Missing/new-method-unavailable binaries fail closed before household reads/writes; protected commands recheck availability. Web remains WebCrypto. Storage protocol, parent lifecycle and assignment schema are unchanged. Kotlin integration requires another separately approved development APK and physical household acceptance; proof success alone does not complete that gate.
+FC-004N.2A adds an isolated Android proof module, not a household credential engine replacement. [ADR-0004](../decisions/ADR-0004.md) defines the opt-in development identity, EAS preparation boundary and physical correctness/performance gate. Web uses its existing credential implementation. Android 12 compatibility is owner-confirmed; Kotlin build/runtime remain unverified pending separate build approval.
 Expo + React Native + Expo Router (JavaScript); web for early interactive validation, Android target. Prefer minimal dependencies. Use the built-in Node test runner for pure JS modules; see ADR-0001 for exact version selections. Select Node 22 with the repository's `.node-version` and a terminal-local fnm environment.
 
 ## Proposed directories after scaffolding

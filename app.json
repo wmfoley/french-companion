@@ -4,8 +4,28 @@
     "slug": "french-companion",
     "version": "0.1.0",
     "scheme": "french-companion",
-    "plugins": ["expo-router"],
-    "web": { "bundler": "metro", "output": "single" },
-    "experiments": { "typedRoutes": false }
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store"
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "0234dc22-4a9d-4bc3-b515-769a186c2acb"
+      }
+    },
+    "owner": "wmtfoley"
   }
 }

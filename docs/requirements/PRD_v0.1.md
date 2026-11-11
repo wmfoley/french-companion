@@ -4,6 +4,8 @@
 **Status:** Initial development baseline / proposed, not yet approved  
 **Architecture reconciliation:** 2026-11-10 — owner-approved ADR-0001 supersedes the separate web/mobile prototype architecture; educational requirements remain proposed.
 **Household policy reconciliation:** 2026-11-10 — approved ADR-0002 separates assignment review, practice eligibility and source fidelity; supersedes mandatory per-assignment approval wording for households explicitly allowing independent practice.
+**Native proof boundary:** Owner-approved FC-004N.2A/ADR-0004 prepares a separate Android development build and storage-free PBKDF2 test only. Existing household authentication remains unchanged; cloud build/upload, physical acceptance and later integration are separate gates. No educational/product scope expansion.
+**Native integration update (2026-11-11):** Following owner-reported successful physical proof, FC-004N.2B/ADR-0005 authorizes native Android household derivation with unchanged parameters/storage/authorization. Another development APK and physical household acceptance remain gated; web stays WebCrypto and no educational scope changes.
 **Date:** 2026-11-09  
 **Primary audience:** Canadian elementary French Immersion students (initial test: Grade 4; design range Grades 2–5) and their English-speaking parents  
 **Target platform:** Android  
@@ -154,7 +156,7 @@ No assumption that school quizzes always occur on Friday; parent can change test
 - View a concise weekly progress summary and common mistakes.
 - Delete the weekly assignment and associated student results.
 
-**Local Parent Area (ADR-0002):** One household per installation and one parent PIN; protected service commands enforce settings independently of navigation. FC-004 implements web persistence, strict-by-default policy and explicit independent-practice opt-in. FC-005 adds reviewed approval/corrections and separate Approve All with risk acknowledgement. Both acceptance methods can authorize strict-mode practice and retain their distinction; neither verifies the original worksheet. Student setup/use must not require repeated parent intervention after policy configuration. No accounts or cloud authentication in these milestones.
+**Local Parent Area (ADR-0002/ADR-0003):** One household per installation and one parent PIN; protected service commands enforce settings independently of navigation. FC-004 implements web persistence, strict-by-default policy and explicit independent-practice opt-in. FC-004N adds native SQLite/SecureStore credentials with the same policy checks; physical Android acceptance remains separate. Parent access expires after five minutes of inactivity, locks on leaving/backgrounding and never survives restart. Interrupted setup or unavailable credentials must retain data and remain locked, with no automatic PIN reset. An explicitly loaded, parent-authorized development sample is never production content. FC-005 adds reviewed approval/corrections and separate Approve All with risk acknowledgement. Both acceptance methods can authorize strict-mode practice and retain their distinction; neither verifies the original worksheet. Student setup/use must not require repeated parent intervention after policy configuration. No accounts or cloud authentication in these milestones.
 
 **Parent guidance example:** “This week's grammar focuses on the -ent → -emment pattern. Ask your child to explain the rule and spell *prudemment*, *fréquemment* and *patiemment* after hearing them. The spoken ending can sound like -amment.”
 
