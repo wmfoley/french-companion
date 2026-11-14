@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useFocusEffect } from 'expo-router';
 import { AppState, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Screen from '../src/components/Screen';
 import { localHousehold } from '../src/services/localHousehold';
+import { parentInteraction, recordParentActivity } from '../src/services/parent/parentActivity';
 import { createParentOperations } from '../src/services/parent/parentOperations';
+import { createAssignmentReviewController } from '../src/services/parent/assignmentReviewController';
+import AssignmentReviewPanel from '../src/components/parent/AssignmentReviewPanel';
 
 const STRICT = 'require_parent_approval';
 const INDEPENDENT = 'allow_independent_practice';
 
 export default function ParentArea() {
   const capability = useRef(null);
+  const reviewRef = useRef(null);
   const live = useRef(false);
   const [operations] = useState(createParentOperations);
+  const [parentSession, setParentSession] = useState(null);
   const [stage, setStage] = useState('loading');
   const [pin, setPin] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -30,15 +35,26 @@ export default function ParentArea() {
   }, []);
   const lock = useCallback(() => {
     operations.invalidate(); setBusy(false);
-    localHousehold.lock(); capability.current = null;
+    localHousehold.lock(); capability.current = null; setParentSession(null);
+    reviewRef.current?.lock();
     setPin(''); setConfirmation(''); setPolicy(null); setAcknowledgeRisk(false);
     if (live.current) setStage(current => ['setup', 'error', 'loading'].includes(current) ? current : 'unlock');
   }, [operations]);
+  const getCapability = useCallback(() => capability.current, []);
+  const [reviewController] = useState(() => createAssignmentReviewController({ service: localHousehold }));
+  useEffect(() => {
+    reviewRef.current = reviewController;
+    reviewController.connect(getCapability, () => { lock(); setMessage('Parent access expired. Enter your PIN again.'); });
+  }, [reviewController, getCapability, lock]);
+  const reviewState = useSyncExternalStore(reviewController.subscribe, reviewController.snapshot, reviewController.snapshot);
   const activity = useCallback(() => {
-    if (capability.current) {
-      try { localHousehold.noteParentActivity(capability.current); } catch { lock(); }
-    }
-  }, [lock]);
+    // Bind UI callbacks to the session that rendered them; stale actions cannot renew a replacement.
+    return recordParentActivity(parentSession, {
+      isCurrent: token => capability.current === token && live.current,
+      noteActivity: localHousehold.noteParentActivity,
+      onLocked: lock,
+    });
+  }, [parentSession, lock]);
   useFocusEffect(useCallback(() => {
     live.current = true;
     const focus = operations.enter();
@@ -60,7 +76,8 @@ export default function ParentArea() {
     if (Platform.OS === 'web') document.addEventListener('visibilitychange', visibility);
     const timer = setInterval(() => {
       const focus = operations.focusId();
-      if (capability.current) localHousehold.getParentPolicy(capability.current).catch(() => { if (operations.isFocus(focus)) { lock(); setMessage('Parent access expired. Enter your PIN again.'); } });
+      const token = capability.current;
+      if (token) localHousehold.getParentPolicy(token).catch(() => { if (operations.isFocus(focus) && capability.current === token) { lock(); setMessage('Parent access expired. Enter your PIN again.'); } });
     }, 1000);
     return () => { listener.remove(); clearInterval(timer); if (Platform.OS === 'web') document.removeEventListener('visibilitychange', visibility); };
   }, [lock, operations]);
@@ -77,12 +94,12 @@ export default function ParentArea() {
     const token = await localHousehold.unlock(pin);
     if (!current()) return;
     setVerificationMs(Math.round(performance.now() - start));
-    capability.current = token;
+    capability.current = token; setParentSession(token);
     const saved = await localHousehold.getParentPolicy(token);
     if (!current() || capability.current !== token) return;
     setPolicy(saved); setChoice(saved.practiceMode); setStage('policy');
   }
-  return <Screen onInteraction={activity}>
+  return <Screen onInteraction={activity} keyboardShouldPersistTaps="handled">
     <Text accessibilityRole="header" style={styles.title}>Parent Area</Text>
     <Text style={styles.body}>One household, one local PIN. Settings stay on this {Platform.OS === 'web' ? 'browser installation' : 'device installation'}.</Text>
     {stage === 'loading' && <Text style={styles.body}>Loading local settings…</Text>}
@@ -97,30 +114,33 @@ export default function ParentArea() {
       <Action disabled={busy} onPress={() => run(open)}>Unlock Parent Area</Action>
     </>}
     {stage === 'policy' && <>
+      <AssignmentReviewPanel controller={reviewController} onActivity={activity} householdBusy={busy} />
+      {reviewState.view === 'home' && <>
       <Text style={styles.body}>Saved policy: {policy?.practiceMode === INDEPENDENT ? 'Independent practice allowed' : 'Parent approval required'}</Text>
       {__DEV__ && <>
         {verificationMs !== null && <Text style={styles.body}>Development timing: last unlock took {verificationMs} ms (PIN derivation plus local storage).</Text>}
-        <Action disabled={busy} onPress={() => run(async current => {
+        <Action onActivity={activity} disabled={busy} onPress={() => run(async current => {
           await localHousehold.loadDevelopmentSample(capability.current);
-          if (current()) setMessage('Development sample loaded, still pending review. Household policy controls practice; production builds exclude it.');
+          if (current()) setMessage('Development sample available. Existing corrections, review and acceptance are preserved; production builds exclude it.');
         })}>Load development sample</Action>
       </>}
-      <Action disabled={busy} onPress={() => { setChoice(STRICT); setAcknowledgeRisk(false); }}>Require parent approval before practice{choice === STRICT ? ' — Selected' : ''}</Action>
-      <Action disabled={busy} onPress={() => { setChoice(INDEPENDENT); setAcknowledgeRisk(false); }}>Allow independent practice{choice === INDEPENDENT ? ' — Selected' : ''}</Action>
+      <Action onActivity={activity} disabled={busy} onPress={() => { setChoice(STRICT); setAcknowledgeRisk(false); }}>Require parent approval before practice{choice === STRICT ? ' — Selected' : ''}</Action>
+      <Action onActivity={activity} disabled={busy} onPress={() => { setChoice(INDEPENDENT); setAcknowledgeRisk(false); }}>Allow independent practice{choice === INDEPENDENT ? ' — Selected' : ''}</Action>
       {choice === INDEPENDENT && <View style={styles.notice}>
         <Text style={styles.body}>Your child may practise structurally valid, eligible assignments before you review them. Transcription or interpretation errors may remain. This does not approve any assignment or verify the original worksheet.</Text>
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acknowledgeRisk }}
           {...(Platform.OS === 'web' ? { 'aria-checked': acknowledgeRisk, onKeyDownCapture: event => {
-            if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); setAcknowledgeRisk(value => !value); }
-          } } : {})} onPress={() => setAcknowledgeRisk(value => !value)} style={styles.input}>
+            if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); parentInteraction(activity, () => setAcknowledgeRisk(value => !value))(); }
+          } } : {})} onPress={() => parentInteraction(activity, () => setAcknowledgeRisk(value => !value))()} style={styles.input}>
           <Text style={styles.body}>{acknowledgeRisk ? '☑' : '☐'} I understand and accept this risk for independent practice.</Text>
         </Pressable>
       </View>}
-      <Action disabled={busy || (choice === INDEPENDENT && !acknowledgeRisk)} onPress={() => run(async current => {
+      <Action onActivity={activity} disabled={busy || (choice === INDEPENDENT && !acknowledgeRisk)} onPress={() => run(async current => {
         const saved = await localHousehold.setPracticePolicy(capability.current, { expectedRevision: policy.revision, practiceMode: choice, acknowledgeRisk });
         if (current() && capability.current) { setPolicy(saved); setAcknowledgeRisk(false); setMessage('Household policy saved. Assignment review and source fidelity are unchanged.'); }
       })}>Save practice policy</Action>
-      <Action disabled={busy} onPress={() => { lock(); setMessage('Parent Area locked.'); }}>Lock Parent Area</Action>
+      </>}
+      <Action onActivity={activity} disabled={busy} onPress={() => { lock(); setMessage('Parent Area locked.'); }}>Lock Parent Area</Action>
     </>}
     <Text accessibilityLiveRegion="polite" style={styles.body}>{message}</Text>
     {busy && <Text accessibilityLiveRegion="polite" style={styles.body}>Working… please wait.</Text>}
@@ -134,8 +154,8 @@ export default function ParentArea() {
   </Screen>;
 }
 
-function Action({ children, disabled, onPress }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={onPress} style={[styles.button, disabled && { opacity: 0.6 }]}><Text style={styles.buttonText}>{children}</Text></Pressable>;
+function Action({ children, disabled, onPress, onActivity }) {
+  return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={onActivity ? parentInteraction(onActivity, onPress) : onPress} style={[styles.button, disabled && { opacity: 0.6 }]}><Text style={styles.buttonText}>{children}</Text></Pressable>;
 }
 const styles = StyleSheet.create({
   diagnostic: { fontSize: 14, lineHeight: 20, color: '#243b33' },

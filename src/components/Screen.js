@@ -1,8 +1,8 @@
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 
-export default function Screen({ children, onInteraction }) {
+export default function Screen({ children, onInteraction, keyboardShouldPersistTaps = 'never' }) {
   return (
-    <ScrollView contentContainerStyle={styles.page} onTouchStart={onInteraction} onScrollBeginDrag={onInteraction}
+    <ScrollView keyboardShouldPersistTaps={keyboardShouldPersistTaps} contentContainerStyle={styles.page} onTouchStart={onInteraction} onScrollBeginDrag={onInteraction}
       {...(Platform.OS === 'web' && onInteraction ? { onPointerDownCapture: onInteraction, onKeyDownCapture: onInteraction } : {})}>
       <View style={styles.content}>{children}</View>
     </ScrollView>

@@ -1,4 +1,11 @@
 # French Immersion Study Companion
+
+## FC-005 development-milestone acceptance - 2026-11-14
+
+The owner accepts FC-005 for the current development milestone. Physical Android results are **5A: 9/9 passed; 5B: 6/6 passed; 6A: 6 passed, 1 skipped; total: 21 passed, 1 skipped**. No functional defects were reported. **Physical TalkBack accessibility testing was intentionally skipped and remains unverified**, deferred to prepublication accessibility testing. Automated activity tests and browser checks do not establish TalkBack correctness or publication readiness.
+
+The accepted implementation includes protected assignment reads, transactional review/correction/approval commands, the existing Parent Area interface, FC-005-06 authorization boundaries, FC-005-07 selective review preservation and the three Increment 6A corrections. Approval, field review, household practice eligibility and source fidelity remain separate. Historical increment records below describe their original delivery status; this dated acceptance supersedes earlier pending-acceptance or unimplemented-capability wording for completed FC-005 work. No new product scope is authorized by acceptance.
+
 ## MVP Product Requirements Document — v0.1
 
 **Status:** Initial development baseline / proposed, not yet approved  
@@ -6,7 +13,9 @@
 **Household policy reconciliation:** 2026-11-10 — approved ADR-0002 separates assignment review, practice eligibility and source fidelity; supersedes mandatory per-assignment approval wording for households explicitly allowing independent practice.
 **Native proof boundary:** Owner-approved FC-004N.2A/ADR-0004 prepares a separate Android development build and storage-free PBKDF2 test only. Existing household authentication remains unchanged; cloud build/upload, physical acceptance and later integration are separate gates. No educational/product scope expansion.
 **Native integration update (2026-11-11):** Following owner-reported successful physical proof, FC-004N.2B/ADR-0005 authorizes native Android household derivation with unchanged parameters/storage/authorization. Another development APK and physical household acceptance remain gated; web stays WebCrypto and no educational scope changes.
+**Historical FC-005 Increment 1 reconciliation (2026-11-11; later increments supersede the capability/reset notes):** Approved method-aware validation separates assignment acceptance from declared field review. Detailed evidence requires complete supplied-field review; explicit risk-acknowledged evidence may retain unreviewed fields. Pure correction helpers preserve source/provenance, reset all review and approval on material edits, and separate content/write revisions. No parent review UI or protected approval/edit commands exist yet. See ADR-0006 and the FC-005 specification; original educational wording below is unchanged.
 **Date:** 2026-11-09  
+**FC-005-07 reconciliation (2026-11-12):** Owner-approved selective review supersedes reset-all wording above: material educational text, correction explanation or correction-origin changes invalidate whole-assignment acceptance, but only changed fields need renewed review. Unchanged field review metadata is preserved exactly. No semantic dependency tracking or source verification is implied. Reapproval is explicit with fresh revision-bound evidence; source excerpts/provenance remain preserved. No new educational fields or schema migration. Owner reports 5A Android UX acceptance 9/9; 5B Android acceptance 6/6 passed. FC-005 is now accepted for the current development milestone; physical TalkBack accessibility is deferred and unverified.
 **Primary audience:** Canadian elementary French Immersion students (initial test: Grade 4; design range Grades 2–5) and their English-speaking parents  
 **Target platform:** Android  
 **Document purpose:** Define a focused educational proof of concept (POC), followed by a controlled Android MVP.
@@ -156,7 +165,7 @@ No assumption that school quizzes always occur on Friday; parent can change test
 - View a concise weekly progress summary and common mistakes.
 - Delete the weekly assignment and associated student results.
 
-**Local Parent Area (ADR-0002/ADR-0003):** One household per installation and one parent PIN; protected service commands enforce settings independently of navigation. FC-004 implements web persistence, strict-by-default policy and explicit independent-practice opt-in. FC-004N adds native SQLite/SecureStore credentials with the same policy checks; physical Android acceptance remains separate. Parent access expires after five minutes of inactivity, locks on leaving/backgrounding and never survives restart. Interrupted setup or unavailable credentials must retain data and remain locked, with no automatic PIN reset. An explicitly loaded, parent-authorized development sample is never production content. FC-005 adds reviewed approval/corrections and separate Approve All with risk acknowledgement. Both acceptance methods can authorize strict-mode practice and retain their distinction; neither verifies the original worksheet. Student setup/use must not require repeated parent intervention after policy configuration. No accounts or cloud authentication in these milestones.
+**Local Parent Area (ADR-0002/ADR-0003):** One household per installation and one parent PIN; protected service commands enforce settings independently of navigation. FC-004 implements web persistence, strict-by-default policy and explicit independent-practice opt-in. FC-004N adds native SQLite/SecureStore credentials with the same policy checks and has passed owner-reported Android development-client acceptance. Parent access expires after five minutes of inactivity, locks on leaving/backgrounding and never survives restart. Interrupted setup or unavailable credentials must retain data and remain locked, with no automatic PIN reset. An explicitly loaded, parent-authorized development sample is never production content. Accepted FC-005 implements reviewed approval/corrections and separate Approve All with risk acknowledgement, including selective review preservation after corrections. Both acceptance methods can authorize strict-mode practice and retain their distinction; neither verifies the original worksheet. Student setup/use must not require repeated parent intervention after policy configuration. No accounts or cloud authentication in these milestones.
 
 **Parent guidance example:** “This week's grammar focuses on the -ent → -emment pattern. Ask your child to explain the rule and spell *prudemment*, *fréquemment* and *patiemment* after hearing them. The spoken ending can sound like -amment.”
 
@@ -331,3 +340,7 @@ Pronunciation scoring, teacher portal, curriculum library, adaptive difficulty b
 ---
 
 **Document governance:** This is a draft baseline. New requirements should be classified as POC, Android MVP or Post-MVP; avoid silently expanding the first two milestones. Record substantive educational or architectural decisions as explicit revisions.
+
+## FC-005 acceptance boundary
+
+This development acceptance does not approve the entire proposed PRD, claim independent worksheet authenticity or authorize publication. Parent list/detail/review/correction/approval is implemented locally; source text stays immutable. No camera/OCR/AI capture, cloud services, translations, structural editing, persisted student-performance history or additional exercise types were added. Missing educational content is not invented; known-gap detection remains limited to the existing model. Optional curriculum enrichment remains future, parent-controlled and disabled by default. TalkBack physical verification and the separately deferred eight Expo SDK 58 package patches remain follow-up work.

@@ -72,7 +72,7 @@ try {
     await wait(150);
   }
   async function fill(label, value) {
-    await evaluate(`(() => { const el = document.querySelector('input[aria-label=${JSON.stringify(label)}]'); if (!el) throw Error('Missing input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await evaluate(`(() => { const el = document.querySelector('input[aria-label=${JSON.stringify(label)}],textarea[aria-label=${JSON.stringify(label)}]'); if (!el) throw Error('Missing input'); Object.getOwnPropertyDescriptor(el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input',{bubbles:true})); })()`);
     await wait(100);
   }
   async function verifyPinFields(labels) {
@@ -142,7 +142,7 @@ try {
     if (new Set(presentation.map(q => q.definition)).size !== 5) throw Error('Questions omitted or duplicated');
     return presentation;
   }
-  const moduleFiles = ['src/services/localHousehold.web.js','src/services/householdService.js','src/services/storage/indexedDbStore.js','src/services/parent/pinCredential.js','src/core/assignments/normalizeAssignment.js','src/core/assignments/validateAssignment.js','src/core/assignments/practiceEligibility.js','src/content/developmentSample.js','src/content/fixtures/grade4-reference.json'];
+  const moduleFiles = ['src/services/localHousehold.web.js','src/services/householdService.js','src/services/storage/indexedDbStore.js','src/services/parent/pinCredential.js','src/core/assignments/normalizeAssignment.js','src/core/assignments/validateAssignment.js','src/core/assignments/practiceEligibility.js','src/core/assignments/assignmentDocument.js','src/core/assignments/assignmentReview.js','src/core/assignments/educationalFields.js','src/content/developmentSample.js','src/content/fixtures/grade4-reference.json'];
   const sources = Object.fromEntries(moduleFiles.map(file => [file, fs.readFileSync(file, 'utf8')]));
   async function inOtherTab(expression) {
     const { targetId } = await call('Target.createTarget', { url: 'http://127.0.0.1:8082' });
@@ -199,6 +199,44 @@ try {
   await evaluate(`testService.submitAssignment(${JSON.stringify(testAssignment)})`);
   const unchanged = await evaluate(`(async()=>{const result=await testService.readPractice('browser-household-lesson');return result.document.assignment.reviewStatus==='pending_review' && result.document.approval===null && result.document.assignment.sources.every(s=>s.fidelity==='reported_teacher_content');})()`);
   if (!unchanged) throw Error('Independent mode altered review or fidelity');
+  const parentReadChecks = await evaluate(`(async()=>{
+    const assert=(ok,msg)=>{if(!ok)throw Error(msg)};
+    let denied=false;try{await testService.listParentAssignments({});}catch(e){denied=e.code==='parent_locked';}assert(denied,'parent list authorization');
+    const token=await testService.unlock('123456');
+    const store=testLoad('src/services/storage/indexedDbStore.js').createIndexedDbStore(indexedDB);
+    const before=JSON.stringify(await store.read());
+    const list=await testService.listParentAssignments(token);
+    assert(list.length===1 && list[0].id==='browser-household-lesson' && list[0].writeRevision===1,'parent metadata/new document revision');
+    assert(!('assignment' in list[0]) && list[0].approvalMethod===null,'minimal list/no inferred approval');
+    const detail=await testService.readParentAssignment(token,{assignmentId:'browser-household-lesson'});
+    assert(detail.document.assignment.reviewStatus==='pending_review' && detail.fields.length===20,'protected pending detail');
+    detail.document.assignment.sources[0].originalText='test mutation';
+    detail.fields[0].provenance.sourceIds.push('test-mutation');
+    const fresh=await testService.readParentAssignment(token,{assignmentId:'browser-household-lesson'});
+    assert(fresh.document.assignment.sources[0].originalText!=='test mutation' && fresh.fields[0].provenance.sourceIds.length===1,'defensive snapshots');
+    assert(JSON.stringify(await store.read())===before,'parent reads changed IndexedDB');
+    await testService.setFieldReview(token,{assignmentId:'browser-household-lesson',expectedWriteRevision:1,fieldPaths:['/vocabulary/0/term'],reviewed:true});
+    let stale=false;try{await testService.markAllReviewed(token,{assignmentId:'browser-household-lesson',expectedWriteRevision:1,confirmReviewDeclaration:true});}catch(e){stale=e.code==='stale_document';}assert(stale,'IndexedDB stale write');
+    const reviewed=await testService.markAllReviewed(token,{assignmentId:'browser-household-lesson',expectedWriteRevision:2,confirmReviewDeclaration:true});
+    assert(reviewed.writeRevision===3 && reviewed.contentRevision===1 && reviewed.approval===null,'review revision/no approval');
+    const corrected=await testService.saveParentCorrections(token,{assignmentId:'browser-household-lesson',expectedWriteRevision:3,corrections:[{fieldPath:'/vocabulary/0/term',text:'un dirigeant corrigé',correctionExplanation:'Browser regression correction.'}]});
+    assert(corrected.writeRevision===4 && corrected.contentRevision===2 && corrected.approval===null,'atomic correction revisions');
+    const stored=(await store.read()).assignments.find(d=>d.assignment.id==='browser-household-lesson');
+    assert(JSON.stringify(stored)===JSON.stringify(corrected) && JSON.stringify(stored.assignment.sources)===JSON.stringify(fresh.document.assignment.sources),'durable corrected snapshot/source preservation');
+    const reset=await testService.readParentAssignment(token,{assignmentId:'browser-household-lesson'});assert(reset.review.reviewedFieldPaths.length===19,'selective review preservation');
+    const bulk=await testService.approveWithoutDetailedReview(token,{assignmentId:'browser-household-lesson',expectedWriteRevision:4,acknowledgeRisk:true,confirmAcceptance:true});
+    assert(bulk.writeRevision===5 && bulk.contentRevision===2 && bulk.approval.method==='bulk_risk_acknowledged','bulk evidence');
+    assert((await testService.readParentAssignment(token,{assignmentId:'browser-household-lesson'})).review.reviewedFieldPaths.length===19,'bulk changed existing review');
+    await testService.markAllReviewed(token,{assignmentId:'browser-household-lesson',expectedWriteRevision:5,confirmReviewDeclaration:true});
+    const accepted=await testService.approveReviewedAssignment(token,{assignmentId:'browser-household-lesson',expectedWriteRevision:6,confirmAcceptance:true,confirmNoKnownGaps:true});
+    assert(accepted.writeRevision===7 && accepted.contentRevision===2 && accepted.approval.method==='reviewed','detailed evidence');
+    assert(JSON.stringify((await store.read()).assignments.find(d=>d.assignment.id==='browser-household-lesson'))===JSON.stringify(accepted),'approval durability');
+    // Restore pending state so the existing policy-revocation regression remains meaningful.
+    await testService.saveParentCorrections(token,{assignmentId:'browser-household-lesson',expectedWriteRevision:7,corrections:[{fieldPath:'/vocabulary/0/term',text:fresh.document.assignment.vocabulary[0].term.text,correctionExplanation:'Restore term for policy regression.'}]});
+    testService.lock();denied=false;try{await testService.readParentAssignment(token,{assignmentId:'browser-household-lesson'});}catch(e){denied=e.code==='parent_locked';}assert(denied,'revoked parent detail');
+    return 'protected parent reads, legacy snapshots and real IndexedDB correction/review/CAS persistence passed';
+  })()`);
+  console.log(parentReadChecks);
   const serviceChecks = await evaluate(`(async()=>{
     const assert=(ok,msg)=>{if(!ok)throw Error(msg)};
     let denied=false;try{await testService.setPracticePolicy({}, {expectedRevision:2,practiceMode:'require_parent_approval'});}catch{denied=true;}assert(denied,'forged capability');
@@ -298,7 +336,105 @@ try {
   await clickText('Unlock Parent Area');
   await expectText('Load development sample');
   await clickText('Load development sample');
-  await expectText('Development sample loaded, still pending review.');
+  await expectText('Development sample available.');
+  await clickText('Review assignments');
+  await expectText('Open assignment');
+  await clickText('Open assignment');
+  await expectText('Reviewed: 0 of 20.');
+  await clickText('Show original sources');
+  await expectText('Preserved original excerpt (read-only)');
+  await expectText('Reported teacher content, not checked against the worksheet');
+  await evaluate(`document.querySelector('[aria-label="Reviewed Vocabulary field 1"]').click()`);
+  await expectText('Reviewed: 1 of 20.');
+  const stableReview = async (checked, total) => {
+    await evaluate(`(() => {
+      const node=document.querySelector('[aria-label="Reviewed Grammar field 10"]');
+      const card=node.parentElement;
+      const source=[...card.querySelectorAll('[role="button"]')].find(el=>el.innerText==='Show original sources');
+      if(source)source.click();
+      window.fcField=node;window.fcCard=card;
+    })()`);
+    await wait(100);
+    await evaluate(`(() => {
+      window.fcField.scrollIntoView({block:'center'});
+      let scroller=window.fcField.parentElement;
+      while(scroller && !(scroller.scrollHeight>scroller.clientHeight && /auto|scroll/.test(getComputedStyle(scroller).overflowY)))scroller=scroller.parentElement;
+      if(!scroller || scroller.scrollTop<100)throw Error('Deep field scroll not established');
+      window.fcScroll=scroller;window.fcOffset=scroller.scrollTop;
+      window.fcField.click();
+    })()`);
+    await expectText('Reviewed: '+total+' of 20.');
+    await wait(100);
+    const stable=await evaluate(`window.fcField.isConnected && window.fcCard.isConnected && document.querySelector('[aria-label="Reviewed Grammar field 10"]')===window.fcField && window.fcField.getAttribute('aria-checked')===${JSON.stringify(String(checked))} && Math.abs(window.fcScroll.scrollTop-window.fcOffset)<2 && [...window.fcCard.querySelectorAll('[role="button"]')].some(el=>el.innerText==='Hide original sources')`);
+    if(!stable)throw Error('Review remounted field, collapsed sources or changed scroll');
+  };
+  await stableReview(true, 2); await stableReview(false, 1);
+  console.log('PASS FC-005 5A: deep-field check/uncheck retains DOM nodes, expanded source and scroll offset.');
+  await clickText('Approve all without checking each item');
+  if (await evaluate(`document.querySelector('[role="checkbox"]:not([aria-label^="Reviewed "])').getAttribute('aria-checked')!=='false'`)) throw Error('Risk acknowledgement preselected');
+  await clickText('Cancel confirmation');
+  await clickText('Approve all without checking each item');
+  if (await evaluate(`document.querySelector('[role="checkbox"]:not([aria-label^="Reviewed "])').getAttribute('aria-checked')!=='false'`)) throw Error('Risk acknowledgement retained on reopen');
+  await evaluate(`document.querySelector('[role="checkbox"]:not([aria-label^="Reviewed "])').click()`);
+  await clickText('Confirm assignment acceptance');
+  await expectText('Accepted without detailed review (risk acknowledged)');
+  await expectText('Reviewed: 1 of 20.');
+  await clickText('Edit');
+  if (await evaluate(`document.querySelectorAll('[aria-label^="Reviewed "]').length!==20 || !window.fcField.isConnected`)) throw Error('Inline editor removed surrounding fields');
+  await fill('Corrected educational text', 'un dirigeant corrigé');
+  await fill('Correction explanation', 'Parent browser acceptance correction.');
+  await clickText('Cancel editing');
+  await expectText('Discard unsaved correction and explanation?');
+  await clickText('Keep editing');
+  await clickText('Save correction');
+  await expectText('Correction saved.');
+  if (await evaluate(`!window.fcField.isConnected || ![...window.fcCard.querySelectorAll('[role="button"]')].some(el=>el.innerText==='Hide original sources')`)) throw Error('Correction remounted surrounding field or collapsed source');
+  await expectText('Reviewed: 0 of 20.');
+  await expectText('Not accepted for strict-mode practice');
+  await clickText('Edit'); await fill('Corrected educational text', 'Unsaved discard test');
+  await clickText('Back to assignments'); await clickText('Discard unsaved changes');
+  await expectText('Open assignment'); await clickText('Open assignment');
+  if (await evaluate(`document.body.innerText.includes('Unsaved discard test')`)) throw Error('Unsaved correction persisted');
+  await clickText('Mark All Reviewed'); await evaluate(`document.querySelector('[role="checkbox"]:not([aria-label^="Reviewed "])').click()`);
+  await clickText('Confirm review declaration'); await expectText('Reviewed: 20 of 20.');
+  await expectText('Not accepted for strict-mode practice');
+  await clickText('Approve reviewed content');
+  if (await evaluate(`[...document.querySelectorAll('[role="checkbox"]:not([aria-label^="Reviewed "])')].some(el=>el.getAttribute('aria-checked')!=='false')`)) throw Error('Detailed confirmations preselected');
+  await evaluate(`[...document.querySelectorAll('[role="checkbox"]:not([aria-label^="Reviewed "])')].forEach(el=>el.click())`);
+  await clickText('Confirm assignment acceptance'); await expectText('Accepted after detailed review');
+  await evaluate(`(() => {
+    window.fcCorrectionField=document.querySelector('[aria-label="Reviewed Grammar field 10"]');
+    window.fcCorrectionCard=window.fcCorrectionField.parentElement;
+    const source=[...window.fcCorrectionCard.querySelectorAll('[role="button"]')].find(el=>el.innerText==='Show original sources');if(source)source.click();
+    window.fcCorrectionField.scrollIntoView({block:'center'});
+    document.querySelector('[aria-label="Edit Grammar field 10"]').click();
+  })()`);
+  await fill('Correction explanation', 'Parent confirmed this grammar field.');
+  await clickText('Save correction'); await expectText('Reviewed: 19 of 20.'); await expectText('Not accepted for strict-mode practice');
+  const correctionContext=await evaluate(`window.fcCorrectionField.isConnected && window.fcCorrectionCard.isConnected && document.querySelector('[aria-label="Reviewed Grammar field 10"]')===window.fcCorrectionField && window.fcCorrectionField.getAttribute('aria-checked')==='false' && [...window.fcCorrectionCard.querySelectorAll('[role="button"]')].some(el=>el.innerText==='Hide original sources') && window.fcCorrectionCard.getBoundingClientRect().bottom>0 && window.fcCorrectionCard.getBoundingClientRect().top<window.innerHeight`);
+  if(!correctionContext)throw Error('Selective correction lost current field/source/viewport context');
+  await evaluate(`window.fcCorrectionField.click()`); await expectText('Reviewed: 20 of 20.');
+  await expectText('Not accepted for strict-mode practice');
+  await clickText('Approve reviewed content');
+  await evaluate(`[...document.querySelectorAll('[role="checkbox"]:not([aria-label^="Reviewed "])')].forEach(el=>el.click())`);
+  await clickText('Confirm assignment acceptance'); await expectText('Accepted after detailed review');
+  console.log('PASS FC-005 5B: one corrected field resets, 19 reviews survive, source/current field stay mounted and visible, fresh explicit approval required.');
+  await clickText('Back to household settings'); await clickText('Load development sample');
+  await clickText('Review assignments'); await expectText('Accepted after detailed review');
+  await clickText('Open assignment'); await clickText('Edit');
+  await fill('Corrected educational text', fixture.vocabulary[0].term.text);
+  await fill('Correction explanation', 'Restore original interpreted term for practice regression.');
+  await clickText('Save correction'); await expectText('Correction saved.');
+  await clickText('Edit'); await fill('Corrected educational text', 'Protected buffer to clear');
+  await clickText('Lock Parent Area'); await expectText('Unlock Parent Area');
+  if (await evaluate(`document.querySelector('textarea')!==null || document.body.innerText.includes('Original sources')`)) throw Error('Protected editor survived lock');
+  await fill('Parent PIN','123456'); await clickText('Unlock Parent Area'); await expectText('Review assignments');
+  await clickText('Review assignments'); await clickText('Open assignment'); await expectText('Reviewed: 19 of 20.');
+  await expectText('Restore original interpreted term for practice regression.');
+  await call('Emulation.setDeviceMetricsOverride', {width:430,height:900,deviceScaleFactor:1,mobile:false});
+  if (await evaluate(`document.documentElement.scrollWidth>window.innerWidth`)) throw Error('Parent review horizontal overflow');
+  await clickText('Back to household settings');
+  console.log('PASS FC-005 parent UI: source inspection, field review, risk/detailed confirmations, corrections/reset, unsaved keep/discard, sample retention, lock clearing and authorized reread; narrow layout fits.');
   await clickText('Allow independent practice');
   await evaluate(`document.querySelector('[role="checkbox"]').click()`);
   await clickText('Save practice policy');

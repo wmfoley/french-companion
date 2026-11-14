@@ -7,6 +7,8 @@ const { createPinCredential } = require('../src/services/parent/pinCredential');
 const { evaluatePracticeEligibility, validPolicy, STRICT, INDEPENDENT } = require('../src/core/assignments/practiceEligibility');
 const { generateVocabularyQuestions } = require('../src/core/exercises/vocabularyMultipleChoice');
 const { createPracticeRun } = require('../src/core/sessions/practiceRun');
+const { enumerateEducationalFields } = require('../src/core/assignments/educationalFields');
+const { applyMarkAllReviewed, applyParentCorrections } = require('../src/core/assignments/assignmentReview');
 
 const clone = value => JSON.parse(JSON.stringify(value));
 function pending() { return { ...clone(fixture), id: 'household-lesson' }; }
@@ -187,6 +189,27 @@ test('legacy approved status alone does not qualify; approval must bind the revi
   assert.equal(eligible(), false);
   document.approval = { method: 'reviewed', contentRevision: 2, acceptedAt: '2026-11-10T00:00:00Z', reviewedFieldPaths: ['/vocabulary/0/term'] };
   assert.equal(eligible(), false);
+});
+
+test('method-aware strict acceptance retains independent policy and correction invalidation', () => {
+  const document = envelope(); document.assignment.reviewStatus = 'approved';
+  document.approval = { method: 'bulk_risk_acknowledged', contentRevision: 1, acceptedAt: '2026-11-11T00:00:00Z', riskAcknowledgementVersion: 1 };
+  const eligible = (value, householdPolicy) => evaluatePracticeEligibility({ assignmentDocument: value, householdPolicy }).eligible;
+  assert.equal(eligible(document), true); assert.equal(document.assignment.vocabulary[0].term.provenance.reviewStatus, 'pending_review');
+  document.approval = { method: 'reviewed', contentRevision: 1, acceptedAt: '2026-11-11T00:00:00Z', reviewedFieldPaths: enumerateEducationalFields(document.assignment).map(f => f.path) };
+  assert.equal(eligible(document), false);
+  const reviewed = applyMarkAllReviewed(document, { expectedWriteRevision: 0, confirmReviewDeclaration: true }).document;
+  assert.equal(eligible(reviewed), false);
+  assert.equal(reviewed.approval, null);
+  // Test-only explicit approval; no Increment 1 helper mints evidence.
+  reviewed.assignment.reviewStatus = 'approved';
+  reviewed.approval = { method: 'reviewed', contentRevision: 1, acceptedAt: '2026-11-11T00:00:00Z', reviewedFieldPaths: enumerateEducationalFields(reviewed.assignment).map(f => f.path) };
+  assert.equal(eligible(reviewed), true);
+  const changed = applyParentCorrections(reviewed, { expectedWriteRevision: 1, corrections: [{ fieldPath: '/vocabulary/0/term', text: 'un meneur', correctionExplanation: 'Parent changed the interpretation.' }] }).document;
+  assert.equal(eligible(changed), false);
+  assert.equal(eligible(changed, { policyVersion: 1, revision: 1, practiceMode: INDEPENDENT, riskAcknowledgementVersion: 1 }), true);
+  assert.equal(eligible(changed, { policyVersion: 1, revision: 1, practiceMode: INDEPENDENT }), false);
+  assert.equal(changed.approval, null); assert.deepEqual(changed.assignment.sources, document.assignment.sources);
 });
 
 test('corrupt configurations cannot reopen setup and unavailable native adapter fails closed', async () => {

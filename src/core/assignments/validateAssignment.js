@@ -43,7 +43,7 @@ function validateAssignment(value) {
     if (!object(p, `${path}.provenance`, ['origin', 'sourceIds', 'reviewStatus', 'correctionExplanation', 'authorship'])) return;
     choice(p.origin, `${path}.provenance.origin`, ORIGINS);
     choice(p.reviewStatus, `${path}.provenance.reviewStatus`, REVIEW_STATUSES);
-    if (value.reviewStatus === 'approved' && p.reviewStatus !== 'approved') error(`${path}.provenance.reviewStatus`, 'unreviewed_content');
+    // Assignment acceptance and declared field review are checked by method-aware document evidence.
     const seen = new Set();
     list(p.sourceIds, `${path}.provenance.sourceIds`, (ref, refPath) => {
       text(ref, refPath);

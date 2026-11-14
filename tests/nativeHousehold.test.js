@@ -45,6 +45,45 @@ function nativeHarness({ randomId = async () => 'credential-id', beforeSecureWri
     failReady: value => { failReady = value; }, failWrite: value => { failWrite = value; } };
 }
 
+test('parent corrections and review use SQLite rollback, revision CAS and durable adapter recreation', async () => {
+  const h = nativeHarness(); const service = h.makeService();
+  try {
+    await service.setup('123456', '123456'); const token = await service.unlock('123456');
+    const id = await service.loadDevelopmentSample(token);
+    const original = await service.readParentAssignment(token, { assignmentId: id });
+    const request = { assignmentId: id, expectedWriteRevision: 1, corrections: [{ fieldPath: '/vocabulary/0/term', text: 'un dirigeant corrigé', correctionExplanation: 'Parent correction.' }] };
+    h.failWrite(true);
+    await assert.rejects(service.saveParentCorrections(token, request), { code: 'persistence_failed' });
+    h.failWrite(false);
+    assert.deepEqual((await service.readParentAssignment(token, { assignmentId: id })).document, original.document);
+    await service.saveParentCorrections(token, request);
+    await assert.rejects(service.saveParentCorrections(token, request), { code: 'stale_document' });
+    await service.markAllReviewed(token, { assignmentId: id, expectedWriteRevision: 2, confirmReviewDeclaration: true });
+    await service.loadDevelopmentSample(token);
+    const recreated = h.makeService(); const current = await recreated.unlock('123456');
+    const fresh = await recreated.readParentAssignment(current, { assignmentId: id });
+    assert.equal(fresh.writeRevision, 3); assert.equal(fresh.document.contentRevision, 2);
+    assert.equal(fresh.review.reviewedFieldPaths.length, 20); assert.equal(fresh.document.approval, null);
+    assert.deepEqual(fresh.document.assignment.sources, original.document.assignment.sources);
+    assert.equal((await recreated.readPractice(id)).eligibility.eligible, false);
+    await recreated.approveReviewedAssignment(current, { assignmentId: id, expectedWriteRevision: 3, confirmAcceptance: true, confirmNoKnownGaps: true });
+    const approved = (await h.makeStore().read()).assignments[0];
+    assert.equal(approved.writeRevision, 4); assert.equal(approved.contentRevision, 2); assert.equal(approved.approval.method, 'reviewed');
+    assert.equal((await recreated.readPractice(id)).eligibility.eligible, true);
+    h.failWrite(true);
+    await assert.rejects(recreated.approveWithoutDetailedReview(current, { assignmentId: id, expectedWriteRevision: 4, acknowledgeRisk: true, confirmAcceptance: true }), { code: 'persistence_failed' });
+    h.failWrite(false); assert.deepEqual((await h.makeStore().read()).assignments[0], approved);
+    await recreated.saveParentCorrections(current, { ...request, expectedWriteRevision: 4,
+      corrections: [{ ...request.corrections[0], correctionExplanation: 'Updated explanation only.' }] });
+    const restarted = h.makeService(); const nextToken = await restarted.unlock('123456');
+    const selective = await restarted.readParentAssignment(nextToken, { assignmentId: id });
+    assert.equal(selective.review.reviewedFieldPaths.length, 19); assert.equal(selective.document.approval, null);
+    assert.equal(selective.writeRevision, 5); assert.equal(selective.document.contentRevision, 3);
+    assert.deepEqual(selective.document.assignment.vocabulary[0].definitionFr, approved.assignment.vocabulary[0].definitionFr);
+    assert.equal((await restarted.readPractice(id)).eligibility.eligible, false);
+  } finally { h.db.close(); }
+});
+
 test('leaving after mutation but before first household write rolls back initialization', async () => {
   let release; let entered;
   const ready = new Promise(resolve => { entered = resolve; });
