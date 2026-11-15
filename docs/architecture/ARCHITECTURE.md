@@ -1,5 +1,13 @@
 # Architecture Baseline — v0.1
 
+## FC-007-UX1 navigation implementation
+
+The existing Expo Router stack now includes `/assignments`, `/add-assignment` and `/grades`. Home has two dominant student links plus secondary My Progress/Parent Area and quieter development links. Assignment selection moved out of `/practice`; its no-ID entry redirects to `/assignments`, while selected-assignment and development-demo routes retain the existing practice engine and guards.
+
+`src/services/studentAssignmentList.js` is a small memory-only presentation controller around `listPracticeAssignments()`, not a new authorization or persistence service. It maps only existing service eligibility/reason/unreviewed-notice metadata, clears stale availability during refresh/failure, and rejects late results using active/request identities. Focus, Android AppState resume and web visibility return refresh the list; leaving/backgrounding invalidates outstanding reads. Cards do not infer preparation, safety or correction-history facts. Deep links still use readPractice and existing run eligibility/contentRevision checks. Parent routes, capabilities, storage and approval/correction commands are unchanged.
+
+Add Assignment and My Progress are honest informational destinations only. No capture, recorded passes or contextual parent handoff. Existing Screen, typography and touch patterns are reused; no global session store, dependency or native change. Owner-reported physical Android acceptance is complete: 18/18 PASS, no defects or observations. TalkBack remains deferred/unverified. FC-007-UX2, FC-007B and FC-008 remain future, separately authorized work; acceptance changes no implementation boundary.
+
 ## Future student navigation and learning-history boundaries
 
 Student-first navigation is planned, not implemented by FC-007A: primary Study an Assignment / Add New Assignment actions; a local assignment list with visible ineligibility explanations; unobtrusive secondary Parent Area access. Starting practice must retain existing strict/independent policy enforcement rather than using approval status alone. Parent-only operations remain PIN-protected at the service boundary. Student-initiated capture must not require parent unlock or confer parent capabilities; capture integration remains future work.

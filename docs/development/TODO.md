@@ -1,10 +1,16 @@
 # Development Backlog — v0.1
 
 
-## Future — student-first navigation (not implemented in FC-007A)
+## FC-007-UX1 — student-first navigation (not implemented in FC-007A)
 
-- [ ] Student-focused landing page: Study an Assignment and Add New Assignment as primary actions; Parent Area as unobtrusive secondary navigation with PIN-protected parent-only operations.
-- [ ] Study opens local assignments; visually distinguish ineligible assignments and explain required action. Strict policy blocks unapproved content requiring review; independent eligibility uses existing authorization rules rather than approval status alone.
+**Accepted:** owner-reported physical Android **18/18 PASS**: Student Home 3/3; Assignment Navigation 3/3; Household Policy 3/3; Practice Regression 4/4; Other Screens and Layout 5/5. No defects or observations reported. TalkBack remains deferred/unverified. Final documentation and commit-readiness verification are authorized; staging, commit and push still require explicit authorization.
+
+- [x] Student-focused landing page: Study an Assignment and Add New Assignment as primary actions; My Progress and Parent Area as secondary navigation, with PIN-protected parent-only operations and quieter development links.
+- [x] Study opens `/assignments`; distinguish ineligible assignments with text explanations. Strict/independent eligibility follows the existing service, not approval status alone. Refresh on focus/resume; stale reads suppressed; loading/empty/error/retry states.
+- [x] Preserve selected practice and demo routes; redirect no-ID `/practice` to the list. Add honest camera/history informational destinations without persistence or new parent handoff.
+- [x] Local verification: 8 focused / 264 total automated tests, lint, web export and cleaned full browser regressions passed. Scope remains JavaScript/navigation plus tests/docs; no persistence, authorization, schema, dependency or native change.
+- [x] Owner completed physical Android acceptance: 18/18 PASS in the five categories above. No defects/observations reported; TalkBack is not included as passed.
+- [ ] FC-007-UX2 remains future, separately scoped/authorized work; no contextual parent handoff or additional UX implementation in UX1. FC-007B capture integration, FC-008 history, TalkBack verification and eight Expo patches remain deferred separately.
 - [ ] Permit students to initiate worksheet capture without first unlocking the Parent Area; no parent privileges or approval granted by capture. Requires separately authorized capture/UI implementation.
 
 ## FC-008 (provisional) — Persistent Grades and vocabulary-level review

@@ -189,12 +189,12 @@ try {
     } finally { other.close(); await call('Target.closeTarget', { targetId }); await call('Page.bringToFront'); }
   }
   async function selectSpelling() {
-    const selected = await evaluate(`(() => { const el=[...document.querySelectorAll('[aria-label="Spelling Practice"]')].find(el=>el.getClientRects().length && getComputedStyle(el).visibility!=='hidden'); if(!el)return false; el.focus(); return document.activeElement===el; })()`);
+    const selected = await evaluate(`(() => { const el=[...document.querySelectorAll('[aria-label="Spelling Practice"]')].find(el=>!el.closest('[aria-hidden="true"],[inert]') && el.getClientRects().length && getComputedStyle(el).visibility!=='hidden'); if(!el)return false; el.focus(); return document.activeElement===el; })()`);
     if (!selected) throw Error('Missing Spelling Practice selection');
     await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
     await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
     await expectText('Pratiquons l’orthographe !');
-    if(!await evaluate(`[...document.querySelectorAll('[aria-label="Spelling Practice"]')].some(el=>el.getClientRects().length && getComputedStyle(el).visibility!=='hidden' && el.getAttribute('aria-pressed')==='true')`))throw Error('Spelling selection state missing');
+    if(!await evaluate(`[...document.querySelectorAll('[aria-label="Spelling Practice"]')].some(el=>!el.closest('[aria-hidden="true"],[inert]') && el.getClientRects().length && getComputedStyle(el).visibility!=='hidden' && el.getAttribute('aria-pressed')==='true')`))throw Error('Spelling selection state missing');
   }
   async function readTypedQuestion() {
     return evaluate(`(() => { const input=document.querySelector('input[aria-label="Ta réponse en français"]');
@@ -270,6 +270,19 @@ try {
       window.testService = window.testLoad('src/services/localHousehold.web.js').localHousehold;
     })()`);
   }
+  const homeActions = await evaluate(`[...document.querySelectorAll('[data-testid="home-study"],[data-testid="home-add"]')].map(el=>({text:el.innerText,href:el.getAttribute('href')}))`);
+  if (JSON.stringify(homeActions) !== JSON.stringify([{text:'Study an Assignment',href:'/assignments'},{text:'Add New Assignment',href:'/add-assignment'}])) throw Error('Student home primary actions');
+  await clickText('Add New Assignment');
+  await expectText('La capture avec la caméra n’est pas encore disponible.');
+  if (await evaluate(`document.querySelector('input[type="file"],video')!==null`)) throw Error('Capture placeholder pretends capture exists');
+  await clickText('Retour à l’accueil'); await clickText('My Progress');
+  await expectText('Pour le moment, tes séances ne sont pas enregistrées.');
+  await clickText('Retour à l’accueil'); await clickText('Study an Assignment');
+  await expectText('Aucune leçon enregistrée pour le moment.');
+  await call('Page.navigate', {url:'http://127.0.0.1:8082/practice'});
+  await expectText('Mes leçons');
+  if (!(await evaluate(`location.pathname==='/assignments'`))) throw Error('Legacy practice list did not redirect');
+  await clickText('Retour à l’accueil');
   await inject();
   await clickText('Parent Area');
   await expectText('Save household setup');
@@ -347,7 +360,7 @@ try {
   console.log(serviceChecks);
   await clickText('Return to student home');
   await expectText('Bienvenue !');
-  await clickText('Commencer à pratiquer');
+  await clickText('Study an Assignment');
   await expectText('Local browser test lesson');
   await clickText('Local browser test lesson');
   await expectText('Cette leçon n’a pas encore été vérifiée par un parent.');
@@ -357,7 +370,7 @@ try {
   await assertTypedHidden(productionTarget.term.text);
   await fill('Ta réponse en français',productionTarget.term.text); await rapidTypedSubmit();
   await expectText(`${productionTarget.term.text} : ${productionTarget.definitionFr.text}`);
-  await clickText('Retour à l’accueil'); await clickText('Commencer à pratiquer'); await clickText('Local browser test lesson');
+  await clickText('Retour à l’accueil'); await clickText('Study an Assignment'); await clickText('Local browser test lesson');
   await expectText('Jouons avec les mots !');
   await clickText('C’est parti !');
   await expectText('Question 1 sur 5');
@@ -564,7 +577,7 @@ try {
   await expectText('Saved policy: Independent practice allowed');
   await clickText('Return to student home');
   await expectText('Bienvenue !');
-  await clickText('Commencer à pratiquer');
+  await clickText('Study an Assignment');
   await expectText('Exemple de développement — vocabulaire');
   await clickText('Exemple de développement — vocabulaire');
   await expectText('Exemple de développement — ne constitue pas une leçon approuvée');
@@ -572,7 +585,7 @@ try {
   await expectText('Question 1 sur 5');
   await clickText('Retour à l’accueil');
   async function startSampleSpelling() {
-    await clickText('Commencer à pratiquer'); await clickText('Exemple de développement — vocabulaire');
+    await clickText('Study an Assignment'); await clickText('Exemple de développement — vocabulaire');
     await selectSpelling(); await clickText('C’est parti !'); await expectText('Question 1 sur 5');
     if((await readTypedQuestion()).draft!=='')throw Error('Fresh household spelling retained draft');
   }
@@ -584,11 +597,19 @@ try {
     await testService.setPracticePolicy(token,{expectedRevision:p.revision,practiceMode:'require_parent_approval'});testService.lock();return true;})()`, 'http://localhost:8083');
   await expectText('La pratique est en pause.');
   if(await evaluate(`document.querySelector('input[aria-label="Ta réponse en français"]')!==null`))throw Error('Policy revocation retained typed input');
-  await clickText('Retour à l’accueil'); await clickText('Commencer à pratiquer');
-  await expectText('— en attente d’autorisation');
+  await clickText('Retour à l’accueil'); await clickText('Study an Assignment');
+  await expectText('Un parent doit revoir cette leçon avant la pratique.');
+  if (await evaluate(`[...document.querySelectorAll('a[href*="assignmentId=fc004n-development-sample"]')].some(el=>!el.closest('[aria-hidden="true"],[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')`)) throw Error('Strict blocked assignment has a practice link');
+  await call('Page.navigate', {url:'http://localhost:8083/practice?assignmentId=fc004n-development-sample'});
+  await expectText('Cette leçon attend une autorisation selon la politique du foyer.');
+  if (await evaluate(`document.body.innerText.includes('C’est parti !')`)) throw Error('Blocked deep link exposed Start');
+  await clickText('Retour à l’accueil'); await clickText('Study an Assignment');
   await inOtherTab(`(async()=>{globalThis.__DEV__=true;${loaderSource}
     const token=await testService.unlock('123456'),p=await testService.getParentPolicy(token);
     await testService.setPracticePolicy(token,{expectedRevision:p.revision,practiceMode:'allow_independent_practice',acknowledgeRisk:true});testService.lock();return true;})()`, 'http://localhost:8083');
+  await expectText('Prête à pratiquer — pas encore revue par un parent.');
+  if (!await evaluate(`[...document.querySelectorAll('a[href*="assignmentId=fc004n-development-sample"]')].some(el=>!el.closest('[aria-hidden="true"],[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')`)) throw Error('Resume did not refresh independent assignment eligibility');
+  console.log('PASS FC-007-UX1: two primary Home actions, honest capture/history destinations, empty list, compatibility redirect, strict blocked rows/deep links and resumed independent-policy availability.');
   await clickText('Retour à l’accueil'); await startSampleSpelling();
   await fill('Ta réponse en français','unsaved draft before correction');
   const corrected=await inOtherTab(`(async()=>{globalThis.__DEV__=true;${loaderSource}

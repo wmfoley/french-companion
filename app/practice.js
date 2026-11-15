@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Link, Redirect, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Screen from '../src/components/Screen';
 import VocabularyQuestion from '../src/components/VocabularyQuestion';
@@ -15,12 +15,12 @@ import { localHousehold } from '../src/services/localHousehold';
 export default function PracticeScreen() {
   const { mode, assignmentId } = useLocalSearchParams();
   const demo = __DEV__ && mode === 'demo';
+  if (!demo && !assignmentId) return <Redirect href="/assignments" />;
   return demo ? <Practice key="demo" demo /> : <HouseholdPractice key={String(assignmentId || '')} assignmentId={assignmentId} />;
 }
 
 function HouseholdPractice({ assignmentId }) {
   const [content, setContent] = useState(null);
-  const [assignments, setAssignments] = useState(null);
   const [error, setError] = useState('');
   const active = useRef(false);
   const visit = useRef(0);
@@ -45,11 +45,6 @@ function HouseholdPractice({ assignmentId }) {
     setError(''); setContent(null);
     async function load() {
       try {
-        if (!assignmentId) {
-          const list = await localHousehold.listPracticeAssignments();
-          if (current()) setAssignments(list);
-          return;
-        }
         const result = await localHousehold.readPractice(assignmentId);
         if (!current()) return;
         if (!result.eligibility.eligible) throw new Error('Cette leçon attend une autorisation selon la politique du foyer.');
@@ -65,11 +60,7 @@ function HouseholdPractice({ assignmentId }) {
   if (content && !error) return <Practice loadedContent={content} verify={verify} />;
   return <Screen>
     <Text accessibilityRole="header" style={styles.title}>Mes leçons</Text>
-    {error ? <Text style={styles.body}>{error}</Text> : assignments ? <>
-      {!assignments.length && <Text style={styles.body}>Aucune leçon enregistrée pour le moment. Le parent peut configurer la politique du foyer dans le Parent Area.</Text>}
-      {assignments.map(item => item.eligible ? <Link key={item.id} href={{ pathname: '/practice', params: { assignmentId: item.id } }} style={styles.link}>{item.title}</Link> :
-        <Text key={item.id} style={styles.body}>{item.title} — en attente d’autorisation</Text>)}
-    </> : <Text style={styles.body}>Chargement des données locales…</Text>}
+    {error ? <Text style={styles.body}>{error}</Text> : <Text style={styles.body}>Chargement des données locales…</Text>}
     <Link href="/" style={styles.link}>Retour à l’accueil</Link>
   </Screen>;
 }

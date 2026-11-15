@@ -1,5 +1,11 @@
 # French Immersion Study Companion
 
+## FC-007-UX1 implemented navigation — owner accepted
+
+Home now has exactly two dominant actions, Study an Assignment and Add New Assignment, with secondary My Progress and Parent Area links and a quieter development-only section. `/assignments` reads local assignment eligibility from the existing household service, explains blocked and independent-policy availability, and refreshes on focus/resume with stale-read suppression and loading/empty/error/retry states. Blocked rows have no study link; direct practice links still undergo existing service and run authorization/revision checks. `/practice` without an assignment redirects to the list; selected-assignment and development-demo practice remain supported.
+
+`/add-assignment` explicitly says camera capture is not yet available. `/grades` is titled My Progress and explicitly says sessions are not saved yet. Both offer Home navigation. No camera, history persistence, contextual parent handoff, new policy, schema, dependency or native change is implemented. Existing Parent Area PIN protection, approval/correction commands and both exercise types remain unchanged. The owner accepts this navigation increment after physical Android 18/18 PASS, with no defects or observations reported. TalkBack remains deferred/unverified; FC-007-UX2, FC-007B capture and FC-008 history remain separate future work. Acceptance does not authorize publication or a commit.
+
 ## Approved future navigation and learning history — not implemented in FC-007A
 
 Student-first landing navigation will offer two primary actions: **Study an Assignment** and **Add New Assignment**. Study opens the locally available assignment list. Ineligible assignments remain visually distinct with an explanation of the required action. Strict household policy blocks unapproved assignments requiring review; independent-practice eligibility follows the existing authorization rules, not approval status alone. The Parent Area remains unobtrusive secondary navigation with PIN-protected parent operations. Students may initiate worksheet capture without first unlocking the Parent Area; capture initiation grants no parent authorization or approval.
