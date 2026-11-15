@@ -67,9 +67,20 @@ try {
   await call('Page.navigate', { url: 'http://127.0.0.1:8082' });
   await expectText('Bienvenue !');
   async function clickText(text) {
-    const found = await evaluate(`(() => { const el = [...document.querySelectorAll('[role="button"],a')].find(el => el.innerText === ${JSON.stringify(text)} && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden'); if (!el || el.getAttribute('aria-disabled') === 'true') return false; el.click(); return true; })()`);
-    if (!found) throw Error('Missing enabled action: ' + text);
-    await wait(150);
+    for(let attempt=0;attempt<40;attempt++) {
+      const found = await evaluate(`(() => { const el = [...document.querySelectorAll('[role="button"],a')].find(el => el.innerText === ${JSON.stringify(text)} && !el.closest('[aria-hidden="true"],[inert]') && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden'); if (!el || el.getAttribute('aria-disabled') === 'true') return false; el.click(); return true; })()`);
+      if(found){await wait(150);return;}
+      await wait(50);
+    }
+    throw Error('Missing enabled action: '+text);
+  }
+  async function rapidClickText(text) {
+    for(let attempt=0;attempt<40;attempt++) {
+      const found=await evaluate(`(() => {const el=[...document.querySelectorAll('[role="button"]')].find(el=>el.innerText===${JSON.stringify(text)}&&!el.closest('[aria-hidden="true"],[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');if(!el||el.getAttribute('aria-disabled')==='true')return false;el.click();el.click();return true;})()`);
+      if(found)return;
+      await wait(50);
+    }
+    throw Error('Missing enabled rapid action: '+text);
   }
   async function fill(label, value) {
     await evaluate(`(() => { const el = document.querySelector('input[aria-label=${JSON.stringify(label)}],textarea[aria-label=${JSON.stringify(label)}]'); if (!el) throw Error('Missing input'); Object.getOwnPropertyDescriptor(el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input',{bubbles:true})); })()`);
@@ -144,24 +155,106 @@ try {
   }
   const moduleFiles = ['src/services/localHousehold.web.js','src/services/householdService.js','src/services/storage/indexedDbStore.js','src/services/parent/pinCredential.js','src/core/assignments/normalizeAssignment.js','src/core/assignments/validateAssignment.js','src/core/assignments/practiceEligibility.js','src/core/assignments/assignmentDocument.js','src/core/assignments/assignmentReview.js','src/core/assignments/educationalFields.js','src/content/developmentSample.js','src/content/fixtures/grade4-reference.json'];
   const sources = Object.fromEntries(moduleFiles.map(file => [file, fs.readFileSync(file, 'utf8')]));
-  async function inOtherTab(expression) {
-    const { targetId } = await call('Target.createTarget', { url: 'http://127.0.0.1:8082' });
+  async function inOtherTab(expression, url = 'http://127.0.0.1:8082') {
+    const { targetId } = await call('Target.createTarget', { url });
     const pages = await (await fetch('http://127.0.0.1:9333/json/list')).json();
     const other = new WebSocket(pages.find(page => page.id === targetId).webSocketDebuggerUrl);
     await new Promise(resolve => other.addEventListener('open', resolve, { once: true }));
     await call('Target.activateTarget', { targetId });
-    try {
-      const result = await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(Error('Other tab timeout')), 15000);
-        other.addEventListener('message', event => {
-          const message = JSON.parse(event.data);
-          if (message.id === 1) { clearTimeout(timer); resolve(message); }
-        });
-        other.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
+    let otherId=0;
+    function otherEvaluate(script) {
+      return new Promise((resolve,reject)=>{
+        const requestId=++otherId;
+        const timer=setTimeout(()=>{other.removeEventListener('message',receive);reject(Error('Other tab timeout'));},15000);
+        function receive(event) {
+          const message=JSON.parse(event.data);
+          if(message.id===requestId){clearTimeout(timer);other.removeEventListener('message',receive);resolve(message);}
+        }
+        other.addEventListener('message',receive);
+        other.send(JSON.stringify({id:requestId,method:'Runtime.evaluate',params:{expression:script,awaitPromise:true,returnByValue:true}}));
       });
+    }
+    try {
+      let loaded=false,lastProbe;
+      for(let attempt=0;attempt<100;attempt++) {
+        const probe=await otherEvaluate(`({origin:location.origin,ready:document.readyState})`);
+        lastProbe=probe.result?.result?.value;
+        if(lastProbe?.origin===new URL(url).origin&&['interactive','complete'].includes(lastProbe.ready)){loaded=true;break;}
+        await wait(100);
+      }
+      if(!loaded)throw Error('Other tab did not reach its expected origin: '+JSON.stringify(lastProbe));
+      const result=await otherEvaluate(expression);
       if (result.result.exceptionDetails || result.error) throw Error(JSON.stringify(result));
       return result.result.result.value;
     } finally { other.close(); await call('Target.closeTarget', { targetId }); await call('Page.bringToFront'); }
+  }
+  async function selectSpelling() {
+    const selected = await evaluate(`(() => { const el=[...document.querySelectorAll('[aria-label="Spelling Practice"]')].find(el=>el.getClientRects().length && getComputedStyle(el).visibility!=='hidden'); if(!el)return false; el.focus(); return document.activeElement===el; })()`);
+    if (!selected) throw Error('Missing Spelling Practice selection');
+    await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+    await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    await expectText('Pratiquons l’orthographe !');
+    if(!await evaluate(`[...document.querySelectorAll('[aria-label="Spelling Practice"]')].some(el=>el.getClientRects().length && getComputedStyle(el).visibility!=='hidden' && el.getAttribute('aria-pressed')==='true')`))throw Error('Spelling selection state missing');
+  }
+  async function readTypedQuestion() {
+    return evaluate(`(() => { const input=document.querySelector('input[aria-label="Ta réponse en français"]');
+      const prompt=document.querySelector('[aria-label="Définition à retrouver"]');
+      if(!input||!prompt)throw Error('Missing typed question');
+      return {definition:prompt.textContent,draft:input.value}; })()`);
+  }
+  async function assertTypedHidden(term) {
+    const hidden = await evaluate(`(() => { const input=document.querySelector('input[aria-label="Ta réponse en français"]');
+      return input && !document.body.innerText.includes(${JSON.stringify(term)}) &&
+        [...document.querySelectorAll('[aria-label],[placeholder],[title]')].every(el=>['aria-label','placeholder','title'].every(name=>!(el.getAttribute(name)||'').includes(${JSON.stringify(term)}))); })()`);
+    if (!hidden) throw Error('Expected term exposed before question completion');
+  }
+  async function typedSubmitDisabled() {
+    return evaluate(`document.querySelector('[aria-label="Vérifier ma réponse"]')?.getAttribute('aria-disabled')==='true'`);
+  }
+  async function rapidTypedSubmit() {
+    await evaluate(`(() => {const el=document.querySelector('[aria-label="Vérifier ma réponse"]');el.click();el.click();})()`);
+  }
+  async function completeTypedSession(mixed = false) {
+    const order = [];
+    for (let i=0;i<5;i++) {
+      await expectText(`Question ${i+1} sur 5`);
+      const initial=await readTypedQuestion(); order.push(initial.definition);
+      const target=fixture.vocabulary.find(item=>item.definitionFr.text===initial.definition);
+      if(!target||initial.draft!=='')throw Error('Typed source association/draft reset failure');
+      await assertTypedHidden(target.term.text);
+      if(!await typedSubmitDisabled())throw Error('Empty typed submit enabled');
+      await fill('Ta réponse en français',' \t');
+      if(!await typedSubmitDisabled())throw Error('Whitespace submit enabled');
+      if(mixed && [1,2].includes(i)) {
+        await fill('Ta réponse en français','réponse incorrecte'); await rapidTypedSubmit();
+        await expectText('Bonne tentative ! Tu peux corriger ta réponse et réessayer.');
+        if((await readTypedQuestion()).draft!=='réponse incorrecte')throw Error('First miss erased draft');
+        await assertTypedHidden(target.term.text);
+        await fill('Ta réponse en français',' RÉPONSE INCORRECTE ');
+        if(!await typedSubmitDisabled())throw Error('Equivalent wrong response enabled');
+        await evaluate(`window.fcTypedInput=document.querySelector('input[aria-label="Ta réponse en français"]');window.fcTypedInput.focus();window.fcTypedInput.setSelectionRange(2,4);`);
+        const cursor=await evaluate(`window.fcTypedInput.selectionStart===2&&window.fcTypedInput.selectionEnd===4`);
+        if(!cursor)throw Error('Typed cursor/selection blocked');
+        await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+        if((await readTypedQuestion()).definition!==initial.definition||!await evaluate(`window.fcTypedInput===document.querySelector('input[aria-label="Ta réponse en français"]')`))throw Error('Typed rerender replaced question/input');
+      }
+      await fill('Ta réponse en français',mixed&&i===2?'une autre erreur':` ${target.term.text.toUpperCase().normalize('NFD')} `);
+      if (i===3) {
+        await evaluate(`document.querySelector('input[aria-label="Ta réponse en français"]').focus()`);
+        await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+        await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+      } else await rapidTypedSubmit();
+      await expectText(`${target.term.text} : ${target.definitionFr.text}`);
+      if((await readTypedQuestion()).definition!==initial.definition)throw Error('Typed feedback reshuffled question');
+      const locked=await evaluate(`document.querySelector('input[aria-label="Ta réponse en français"]').readOnly`);
+      if(!locked)throw Error('Completed typed input editable');
+      if(mixed&&i===2)await expectText('Tu apprends en essayant. Découvrons ce terme ensemble !');
+      else await expectText('Bravo ! Tu as trouvé le terme.');
+      await clickText(i===4?'Terminer':'Suivant');
+    }
+    await expectText('Bravo pour tes efforts !'); await expectText('Tu as exploré 5 mots.');
+    if(new Set(order).size!==5)throw Error('Typed questions duplicated/omitted');
+    return order;
   }
   const loaderSource = `const sources=${JSON.stringify(sources)};const cache={};function load(name){if(name.endsWith('.json'))return JSON.parse(sources[name]);if(cache[name])return cache[name].exports;const module={exports:{}};cache[name]=module;new Function('require','module','exports',sources[name])(ref=>load(new URL(ref.endsWith('.json')?ref:ref+'.js','https://test/'+name).pathname.slice(1)),module,module.exports);return module.exports;}const testService=load('src/services/localHousehold.web.js').localHousehold;`;
   async function inject() {
@@ -258,6 +351,14 @@ try {
   await expectText('Local browser test lesson');
   await clickText('Local browser test lesson');
   await expectText('Cette leçon n’a pas encore été vérifiée par un parent.');
+  await selectSpelling(); await clickText('C’est parti !'); await expectText('Question 1 sur 5');
+  const productionTyped=await readTypedQuestion();
+  const productionTarget=fixture.vocabulary.find(item=>item.definitionFr.text===productionTyped.definition);
+  await assertTypedHidden(productionTarget.term.text);
+  await fill('Ta réponse en français',productionTarget.term.text); await rapidTypedSubmit();
+  await expectText(`${productionTarget.term.text} : ${productionTarget.definitionFr.text}`);
+  await clickText('Retour à l’accueil'); await clickText('Commencer à pratiquer'); await clickText('Local browser test lesson');
+  await expectText('Jouons avec les mots !');
   await clickText('C’est parti !');
   await expectText('Question 1 sur 5');
   // A separate parent service/client changes the same persisted policy while student practice is active.
@@ -297,11 +398,13 @@ try {
   if (await evaluate(`document.body.innerText.includes('Démo') || document.body.innerText.includes('C’est parti')`)) throw Error('Production demo bypass');
   await call('Page.navigate', { url: 'http://localhost:8083' });
   await expectText('Bienvenue !');
-  // Deterministic browser-only RNG, installed before mounting practice. No app debug hooks.
-  await evaluate(`window.fcOriginalRandom = Math.random; window.fcRandomValue = 0; Math.random = () => window.fcRandomValue;`);
+  // Control only development presentation draws; routing IDs must retain real randomness.
+  // Pure seeded/injected unit tests remain the primary deterministic contract coverage.
+  await evaluate(`(() => { const original=Math.random; window.fcOriginalRandom=original; window.fcRandomValue=0;
+    Math.random=()=>typeof window.fcRandomValue==='number'&&new Error().stack.includes('randomizePresentation')?window.fcRandomValue:original(); })()`);
   await clickText('Démo — contenu en attente de validation');
   await expectText('Jouons avec les mots !');
-  await evaluate(`(() => { const el = [...document.querySelectorAll('[role="button"]')].find(el => el.innerText === 'C’est parti !'); el.click(); el.click(); })()`);
+  await rapidClickText('C’est parti !');
   await expectText('Question 1 sur 5');
   await expectText('Démo — contenu en attente de validation');
   const beforeResize = await readQuestion();
@@ -310,7 +413,7 @@ try {
   if (JSON.stringify(await readQuestion()) !== JSON.stringify(beforeResize)) throw Error('Rerender reshuffled question');
   const firstPresentation = await completeRandomizedSession(true);
   await evaluate(`window.fcRandomValue = 0.999;`);
-  await evaluate(`(() => { const el = [...document.querySelectorAll('[role="button"]')].find(el => el.innerText === 'Rejouer'); el.click(); el.click(); })()`);
+  await rapidClickText('Rejouer');
   await expectText('Question 1 sur 5');
   const replayPresentation = await completeRandomizedSession();
   if (JSON.stringify(firstPresentation) === JSON.stringify(replayPresentation)) throw Error('Replay reused old presentation');
@@ -320,12 +423,32 @@ try {
     const replay = replayPresentation.find(q => q.definition === question.definition);
     if ([...question.options].sort().join() !== [...replay.options].sort().join()) throw Error('Replay changed distractor membership');
   }
+  await selectSpelling(); await evaluate(`window.fcRandomValue=0`);
+  await rapidClickText('C’est parti !');
+  await expectText('Question 1 sur 5');
+  const configured = await evaluate(`(() => {const input=document.querySelector('input[aria-label="Ta réponse en français"]');
+    return input.autocomplete==='off'&&input.getAttribute('autocapitalize')==='none'&&input.spellcheck===false;})()`);
+  if(!configured)throw Error('Typed autocorrection/input configuration');
+  const typedOrder=await completeTypedSession(true);
+  await evaluate(`window.fcRandomValue=0.999`);
+  await rapidClickText('Rejouer');
+  const typedReplay=await completeTypedSession();
+  if(JSON.stringify(typedOrder)===JSON.stringify(typedReplay))throw Error('Typed replay reused presentation');
+  await clickText('Rejouer'); await expectText('Question 1 sur 5');
+  await fill('Ta réponse en français','Unfinished draft');
+  await evaluate(`window.fcOldTypedSubmit=document.querySelector('[aria-label="Vérifier ma réponse"]');true`);
+  console.log('PASS FC-006C: exercise selection, hidden answers, blank/equivalent guards, retained editable draft/cursor, first/second success and two misses, guarded keyboard/rapid submission, stable presentation and fresh replay.');
   await clickText('Retour à l’accueil');
   await expectText('Bienvenue !');
   await evaluate(`Math.random = window.fcOriginalRandom; delete window.fcOriginalRandom; delete window.fcRandomValue;`);
   await clickText('Démo — contenu en attente de validation');
   await expectText('Jouons avec les mots !');
+  await selectSpelling(); await clickText('C’est parti !'); await expectText('Question 1 sur 5');
+  await evaluate(`window.fcOldTypedSubmit?.click()`);
+  if((await readTypedQuestion()).draft!==''||!await typedSubmitDisabled())throw Error('Navigation retained typed draft or stale callback');
   await clickText('Retour à l’accueil');
+  // Restore the established parent-regression viewport after the 390px typed input checks.
+  await call('Emulation.setDeviceMetricsOverride', {width:430,height:844,deviceScaleFactor:1,mobile:true});
   await clickText('Parent Area');
   await expectText('Save household setup');
   await fill('New six-digit parent PIN', '123456');
@@ -447,6 +570,39 @@ try {
   await expectText('Exemple de développement — ne constitue pas une leçon approuvée');
   await clickText('C’est parti !');
   await expectText('Question 1 sur 5');
+  await clickText('Retour à l’accueil');
+  async function startSampleSpelling() {
+    await clickText('Commencer à pratiquer'); await clickText('Exemple de développement — vocabulaire');
+    await selectSpelling(); await clickText('C’est parti !'); await expectText('Question 1 sur 5');
+    if((await readTypedQuestion()).draft!=='')throw Error('Fresh household spelling retained draft');
+  }
+  await startSampleSpelling();
+  await fill('Ta réponse en français','premier essai incorrect'); await rapidTypedSubmit();
+  await expectText('Bonne tentative ! Tu peux corriger ta réponse et réessayer.');
+  await inOtherTab(`(async()=>{globalThis.__DEV__=true;${loaderSource}
+    const token=await testService.unlock('123456'),p=await testService.getParentPolicy(token);
+    await testService.setPracticePolicy(token,{expectedRevision:p.revision,practiceMode:'require_parent_approval'});testService.lock();return true;})()`, 'http://localhost:8083');
+  await expectText('La pratique est en pause.');
+  if(await evaluate(`document.querySelector('input[aria-label="Ta réponse en français"]')!==null`))throw Error('Policy revocation retained typed input');
+  await clickText('Retour à l’accueil'); await clickText('Commencer à pratiquer');
+  await expectText('— en attente d’autorisation');
+  await inOtherTab(`(async()=>{globalThis.__DEV__=true;${loaderSource}
+    const token=await testService.unlock('123456'),p=await testService.getParentPolicy(token);
+    await testService.setPracticePolicy(token,{expectedRevision:p.revision,practiceMode:'allow_independent_practice',acknowledgeRisk:true});testService.lock();return true;})()`, 'http://localhost:8083');
+  await clickText('Retour à l’accueil'); await startSampleSpelling();
+  await fill('Ta réponse en français','unsaved draft before correction');
+  const corrected=await inOtherTab(`(async()=>{globalThis.__DEV__=true;${loaderSource}
+    const token=await testService.unlock('123456');
+    const detail=await testService.readParentAssignment(token,{assignmentId:'fc004n-development-sample'});
+    await testService.saveParentCorrections(token,{assignmentId:'fc004n-development-sample',expectedWriteRevision:detail.writeRevision,
+      corrections:[{fieldPath:'/vocabulary/0/term',text:detail.document.assignment.vocabulary[0].term.text,correctionExplanation:'FC-006C active practice revision regression.'}]});
+    const latest=await testService.readPractice('fc004n-development-sample');testService.lock();
+    return latest.eligibility.eligible&&latest.document.contentRevision===detail.document.contentRevision+1;})()`, 'http://localhost:8083');
+  if(!corrected)throw Error('Correction did not preserve independent eligibility/revise content');
+  await expectText('La pratique est en pause.');
+  if(await evaluate(`document.querySelector('input[aria-label="Ta réponse en français"]')!==null`))throw Error('Correction retained stale typed draft');
+  await clickText('Retour à l’accueil'); await startSampleSpelling();
+  console.log('PASS FC-006C household: production eligible spelling, strict/independent enforcement, live policy revocation, correction revision invalidation, fresh re-entry and no retained drafts.');
   await call('Page.navigate', { url: 'http://127.0.0.1:8082/native-pbkdf2' });
   await expectText('Unavailable here. Use the Android development build.');
   if (await evaluate(`document.body.innerText.includes('Run public vector:')`)) throw Error('Native proof exposed on production web');

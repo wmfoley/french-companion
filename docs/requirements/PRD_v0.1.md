@@ -1,5 +1,15 @@
 # French Immersion Study Companion
 
+## FC-006 implemented product scope - 2026-11-15
+
+The approved incremental scope adds Spelling Practice alongside the existing default Multiple Choice. It derives up to five definition-to-complete-French-term questions from existing eligible vocabulary without new parent preparation, configuration, editing or approval. Articles remain part of the expected term. Case, surrounding whitespace and canonical Unicode equivalence follow the existing grader; accents, internal whitespace and punctuation remain significant. Two meaningful attempts, retained editable text after a first miss, completion-only answer feedback and the existing participation-focused celebration are implemented. Blank and grading-equivalent incorrect resubmissions consume no attempt; no numerical student score or persistent responses are added.
+
+Existing household policies, approval evidence, source fidelity and content-revision safeguards remain distinct and unchanged. No new educational source content is invented. No capture, OCR, AI, speech, cloud service, schema migration, dependency or native change is included. This is typed vocabulary recall, not the future sentence fill-in-the-blank or dictation feature; broader proposed PRD features below are not all implemented or approved by this milestone.
+
+The owner reports physical Android acceptance of 12 tests: 12 passed, 0 failed, 0 skipped, 0 outstanding, with no observations or defects. This report was recorded on 2026-11-15; physical TalkBack remains separately deferred and unverified. Final verification/commit preparation does not authorize a commit or publication.
+
+Parent effort remains a first-class quality measure alongside educational usefulness, correctness, security and reliability. Future intake should target capture -> review exceptions -> ready-to-practice with approximately two minutes of typical parent involvement. This is a future quality target, not implemented intake or authorization to begin it.
+
 ## FC-005 development-milestone acceptance - 2026-11-14
 
 The owner accepts FC-005 for the current development milestone. Physical Android results are **5A: 9/9 passed; 5B: 6/6 passed; 6A: 6 passed, 1 skipped; total: 21 passed, 1 skipped**. No functional defects were reported. **Physical TalkBack accessibility testing was intentionally skipped and remains unverified**, deferred to prepublication accessibility testing. Automated activity tests and browser checks do not establish TalkBack correctness or publication readiness.

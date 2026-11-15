@@ -1,5 +1,23 @@
 # Development Backlog — v0.1
 
+
+## FC-006 - Typed Vocabulary Recall / Spelling Practice
+
+**Current status (2026-11-15):** FC-006A/B/C are implemented; FC-006D final verification and documentation reconciliation are authorized. The owner reports physical Android acceptance: 12 passed, 0 failed, 0 skipped, 0 outstanding; no observations or defects. TalkBack remains separately deferred/unverified. No dependency, native, schema, household-service, Parent Area or persistence changes. One coherent milestone commit requires explicit owner authorization; no staging, commit or push yet.
+
+- [x] Confirm both provisional policies are compatible before coding: grading-equivalent incorrect retries consume no attempt; narrowly defined whole-term/article-stripped-headword literal leakage exclusions.
+- [x] Full-envelope eligibility, reference-only questions, deterministic ID order and maximum five; existing detailed/bulk approvals and independent policy reused without extra parent steps.
+- [x] Pure grading/immutable attempt transitions, question-bound response states, two attempts/three existing outcomes, blank/repeated no-ops and completion-only answer feedback.
+- [x] Twenty focused tests and full automated suite 210/210 passed; lint passed. Existing multiple-choice/FC-003A, household/FC-004N and FC-005 regressions remain passing.
+- [x] FC-006B: owner-authorized explicit two-type session/presentation dispatch, private grading snapshots, completion-only feedback and existing policy/contentRevision verifier/concurrency/stale-operation safeguards.
+- [x] FC-006B local tests: 16 focused integration tests and full 226/226 suite; lint passed. Existing multiple-choice defaults and option draw ordering preserved. Web results are in the log.
+- [x] FC-006C: owner-authorized student activity selection and typed input, retained first-miss draft, meaningful-edit Submit guard and completion feedback, existing policy/revision/lifecycle checks; no parent changes.
+- [x] Owner-reported physical Android acceptance: 12 passed, 0 failed, 0 skipped, 0 outstanding; French entry, cursor, keyboard visibility, grading, retries, Replay, navigation, background/resume and authorization/content correction. No observations/defects reported. TalkBack is a separate unverified prepublication item.
+- [x] FC-006D final verification: 231/231 tests, lint, web export (814 modules), full browser regressions and Git scope/whitespace checks passed; documentation reconciled. Ready for one coherent milestone commit, pending explicit authorization. No feature implementation.
+- [ ] Future intake quality target: capture -> review exceptions -> ready to practise with approximately two minutes of typical parent involvement. Measure active time/interactions/correction burden; preserve policy/provenance distinctions. Not implemented by FC-006A.
+
+Physical TalkBack verification remains unverified/deferred to prepublication testing. The eight Expo SDK 58 patch recommendations remain separate maintenance; no upgrade or check suppression.
+
 ## FC-005 development-milestone acceptance - 2026-11-14
 
 The owner accepts FC-005 for the current development milestone. Physical Android results are **5A: 9/9 passed; 5B: 6/6 passed; 6A: 6 passed, 1 skipped; total: 21 passed, 1 skipped**. No functional defects were reported. **Physical TalkBack accessibility testing was intentionally skipped and remains unverified**, deferred to prepublication accessibility testing. Automated activity tests and browser checks do not establish TalkBack correctness or publication readiness.
@@ -80,7 +98,7 @@ Historical FC-003 handoff: local parent review/approved-lesson loading and Andro
 - [x] Native adapter implementation and Android verification subsequently completed and owner-accepted under FC-004N; not part of original FC-004 delivery.
 
 ## FC-005 — Parent review, acceptance and student integration
-**Current status:** Accepted by the owner on 2026-11-14 for the current development milestone. Physical Android: 5A 9/9 passed; 5B 6/6 passed; 6A 6 passed, 1 skipped; total 21 passed, 1 skipped. Physical TalkBack was intentionally skipped and remains unverified, deferred to prepublication accessibility testing. No functional defects reported. Commit remains separately gated; all changes are uncommitted. Eight SDK 58 patch recommendations remain separate maintenance work. Earlier results below are historical.
+**Current status:** Accepted by the owner on 2026-11-14 for the current development milestone and subsequently committed/pushed at 696550c202e54eb9ce89746c9b8ee52d29857541, the FC-006 baseline. Physical Android: 5A 9/9 passed; 5B 6/6 passed; 6A 6 passed, 1 skipped; total 21 passed, 1 skipped. Physical TalkBack was intentionally skipped and remains unverified, deferred to prepublication accessibility testing. No functional defects reported. Eight SDK 58 patch recommendations remain separate maintenance work. Earlier per-increment uncommitted/status notes below are historical.
 - [x] Enumerate supplied schema-defined educational fields with independent descriptors and existing evidence paths.
 - [x] Validate legacy/current envelopes, separate write/content revisions and method-aware acceptance evidence.
 - [x] Immutable field-review/confirmed Mark All and correction/reset transformations; no receipt creation or persistence.

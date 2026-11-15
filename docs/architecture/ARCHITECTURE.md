@@ -1,5 +1,15 @@
 # Architecture Baseline — v0.1
 
+## FC-006 current practice architecture - 2026-11-15
+
+Exactly two exercise types are implemented: vocabulary_multiple_choice (the backward-compatible default) and typed_vocabulary_recall, presented as Spelling Practice. Both use reference-only question definitions, the existing in-memory practiceRun coordinator, authorized assignment snapshots and the same live eligibility/contentRevision verifier. Start/Replay/Submit/Next, resume and existing polling retain household-policy enforcement; route exit and invalidated content discard the active run and drafts. No generalized exercise registry or persisted student-performance model was introduced.
+
+Spelling Practice resolves the French definition from the referenced vocabulary item and grades the complete stored term, including articles, through unchanged gradeAnswer semantics. Blank or grading-equivalent incorrect resubmissions consume no attempt. There are at most two meaningful attempts and five eligible questions; the expected term is withheld from typed prompt/feedback until completion. Multiple Choice necessarily includes the correct term among unlabelled choices. Grading context stays separate from student presentation; locally inspectable assignment data is not encrypted or hidden from device developers.
+
+No new parent preparation/configuration/approval, assignment schema, storage, dependency or native changes. Existing detailed/bulk acceptance and independent household policy remain sufficient. Development sample/reference production exclusions remain. See [EXERCISE_MODEL.md](EXERCISE_MODEL.md) for exact contracts.
+
+Owner-reported physical Android acceptance, recorded 2026-11-15: 12 passed, 0 failed, 0 skipped, 0 outstanding; no observations or defects reported. Physical TalkBack is separate, deferred and unverified. These JavaScript changes use Metro with the existing development APK; household authentication still requires the accepted native module and cannot run in Expo Go. Commit authorization and assignment capture remain separate gates. Earlier increment/platform descriptions below are historical where superseded by this current state.
+
 ## FC-005 development-milestone acceptance - 2026-11-14
 
 The owner accepts FC-005 for the current development milestone. Physical Android results are **5A: 9/9 passed; 5B: 6/6 passed; 6A: 6 passed, 1 skipped; total: 21 passed, 1 skipped**. No functional defects were reported. **Physical TalkBack accessibility testing was intentionally skipped and remains unverified**, deferred to prepublication accessibility testing. Automated activity tests and browser checks do not establish TalkBack correctness or publication readiness.

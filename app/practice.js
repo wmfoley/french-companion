@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { AppState, Pressable, StyleSheet, Text } from 'react-native';
+import { AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Screen from '../src/components/Screen';
 import VocabularyQuestion from '../src/components/VocabularyQuestion';
+import TypedVocabularyQuestion from '../src/components/TypedVocabularyQuestion';
 import referenceAssignment from '../src/content/fixtures/grade4-reference.json';
 import { normalizeAssignment } from '../src/core/assignments/normalizeAssignment';
 import { generateVocabularyQuestions, resolveVocabularyQuestion } from '../src/core/exercises/vocabularyMultipleChoice';
+import { generateTypedVocabularyQuestions } from '../src/core/exercises/typedVocabularyRecall';
 import { summarizeSession } from '../src/core/sessions/practiceSession';
 import { createPracticeRun } from '../src/core/sessions/practiceRun';
 import { localHousehold } from '../src/services/localHousehold';
@@ -52,9 +54,8 @@ function HouseholdPractice({ assignmentId }) {
         if (!current()) return;
         if (!result.eligibility.eligible) throw new Error('Cette leçon attend une autorisation selon la politique du foyer.');
         baseline.current = result.document.contentRevision;
-        const generated = generateVocabularyQuestions(result.document.assignment, { householdPolicy: result.policy, approval: result.document.approval, development: __DEV__,
-          contentRevision: result.document.contentRevision, purpose: result.document.purpose });
-        if (current()) setContent({ assignment: result.document.assignment, purpose: result.document.purpose, eligibility: result.eligibility, ...generated });
+        if (current()) setContent({ document: result.document, policy: result.policy, assignment: result.document.assignment,
+          purpose: result.document.purpose, eligibility: result.eligibility });
       } catch (failure) { if (current()) setError(failure.message); }
     }
     load();
@@ -77,46 +78,71 @@ function Practice({ demo = false, loadedContent, verify = async () => true }) {
   const [content] = useState(() => {
     if (loadedContent) return loadedContent;
     const assignment = normalizeAssignment(referenceAssignment);
-    return { assignment, ...generateVocabularyQuestions(assignment, { mode: demo ? 'demo' : 'practice', development: __DEV__ }) };
+    return { assignment, document: { storageVersion: 1, contentRevision: 1, purpose: 'household_assignment', assignment, approval: null } };
   });
+  const [exerciseType, setExerciseType] = useState('vocabulary_multiple_choice');
+  return <ExercisePractice key={exerciseType} demo={demo} content={content} exerciseType={exerciseType} onChoose={setExerciseType} verify={verify} />;
+}
+
+function ExercisePractice({ demo, content, exerciseType, onChoose, verify }) {
+  const spelling = exerciseType === 'typed_vocabulary_recall';
+  const [options] = useState(() => ({ mode: demo ? 'demo' : 'practice', development: __DEV__, householdPolicy: content.policy }));
+  const [generated] = useState(() => spelling ? generateTypedVocabularyQuestions(content.document, options) :
+    generateVocabularyQuestions(content.assignment, { ...options, approval: content.document.approval,
+      contentRevision: content.document.contentRevision, purpose: content.document.purpose }));
   const [run, setRun] = useState(null);
-  const [controls] = useState(() => createPracticeRun({ questions: content.questions, verify, random: Math.random, onChange: setRun }));
+  const [ready, setReady] = useState(false);
+  const [controls] = useState(() => createPracticeRun({ questions: generated.questions, verify, random: Math.random, onChange: setRun,
+    exerciseType, document: content.document, options }));
   useFocusEffect(useCallback(() => {
     controls.enter();
-    return () => controls.leave();
+    setReady(true);
+    return () => { controls.leave(); setReady(false); setRun(null); };
   }, [controls]));
   const session = run?.session;
   const assignment = content.assignment;
-  const questions = run?.questions || content.questions;
+  const questions = run?.questions || generated.questions;
   const question = session && !session.finished ? questions[session.index] : null;
   const summary = session ? summarizeSession(session) : null;
-  return (
-    <Screen>
+  const body = (
+    <Screen keyboardShouldPersistTaps={spelling ? 'handled' : 'never'}>
       {demo && <Text accessibilityRole="header" style={styles.banner}>Démo — contenu en attente de validation</Text>}
       {content.purpose === 'development_sample' && <Text style={styles.banner}>Exemple de développement — ne constitue pas une leçon approuvée</Text>}
       {content.eligibility?.requiresUnreviewedNotice && <Text style={styles.banner}>Cette leçon n’a pas encore été vérifiée par un parent.</Text>}
+      {(!session || session.finished) && <View accessibilityLabel="Activité" style={styles.choices}>
+        {[['vocabulary_multiple_choice', 'Multiple Choice'], ['typed_vocabulary_recall', 'Spelling Practice']].map(([type, label]) => <Pressable key={type}
+          accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: exerciseType === type }}
+          {...(Platform.OS === 'web' ? { 'aria-pressed': exerciseType === type } : {})} onPress={() => onChoose(type)}
+          style={[styles.choice, exerciseType === type && styles.chosen]}><Text style={styles.body}>{label}</Text></Pressable>)}
+      </View>}
       {!questions.length ? <>
         <Text accessibilityRole="header" style={styles.title}>Ta leçon se prépare</Text>
-        <Text style={styles.body}>{assignment.reviewStatus !== 'approved' && !demo ? 'Cette leçon attend la validation d’un parent avant de commencer.' : 'Il faut au moins trois mots avec des définitions différentes pour cette activité.'}</Text>
+        <Text style={styles.body}>{spelling ? 'Aucun terme avec une définition utilisable pour cette activité. Tu peux choisir une autre activité.' : assignment.reviewStatus !== 'approved' && !demo ? 'Cette leçon attend la validation d’un parent avant de commencer.' : 'Il faut au moins trois mots avec des définitions différentes pour cette activité.'}</Text>
       </> : !session ? <>
-        <Text accessibilityRole="header" style={styles.title}>Jouons avec les mots !</Text>
-        <Text style={styles.body}>Lis une définition et choisis le mot qui correspond. Tu peux essayer une deuxième fois.</Text>
-        <Pressable accessibilityRole="button" style={styles.button} onPress={() => controls.start()}><Text style={styles.buttonText}>C’est parti !</Text></Pressable>
+        <Text accessibilityRole="header" style={styles.title}>{spelling ? 'Pratiquons l’orthographe !' : 'Jouons avec les mots !'}</Text>
+        <Text style={styles.body}>{spelling ? 'Lis la définition et écris le terme complet, avec son article (un, une, le, la) s’il en a un. Tu peux corriger ta réponse après un premier essai.' : 'Lis une définition et choisis le mot qui correspond. Tu peux essayer une deuxième fois.'}</Text>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: !ready }} disabled={!ready} style={styles.button} onPress={() => controls.start()}><Text style={styles.buttonText}>C’est parti !</Text></Pressable>
       </> : session.finished ? <>
         <Text accessibilityRole="header" style={styles.title}>Bravo pour tes efforts !</Text>
         <Text style={styles.body}>Tu as exploré {summary.completed} mots. Chaque essai t’aide à apprendre.</Text>
         <Text style={styles.body}>{summary.incorrectAfterTwoAttempts ? 'Certains mots se découvrent petit à petit. Tu pourras les revoir tranquillement.' : 'Tu as trouvé tous les mots, parfois avec un deuxième essai. Continue comme ça !'}</Text>
-        <Pressable accessibilityRole="button" style={styles.button} onPress={() => controls.start()}><Text style={styles.buttonText}>Rejouer</Text></Pressable>
-      </> : <VocabularyQuestion key={question.id} question={resolveVocabularyQuestion(question, assignment)} response={session.responses[question.id]}
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: !ready }} disabled={!ready} style={styles.button} onPress={() => controls.start()}><Text style={styles.buttonText}>Rejouer</Text></Pressable>
+      </> : spelling ? <TypedVocabularyQuestion key={question.id} question={controls.present(run, question)} response={session.responses[question.id]}
+        number={session.index + 1} total={questions.length}
+        onSubmit={text => controls.submit(run, question, text)} onNext={() => controls.advance(run, question.id)} /> :
+      <VocabularyQuestion key={question.id} question={resolveVocabularyQuestion(question, assignment)} response={session.responses[question.id]}
         number={session.index + 1} total={questions.length}
         onSubmit={selected => controls.submit(run, question, selected)}
         onNext={() => controls.advance(run, question.id)} />}
       <Link href="/" style={styles.link}>Retour à l’accueil</Link>
     </Screen>
   );
+  return spelling ? <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>{body}</KeyboardAvoidingView> : body;
 }
 
 const styles = StyleSheet.create({
+  keyboard: { flex: 1 }, choices: { gap: 12 }, choice: { minHeight: 56, padding: 16, borderWidth: 2, borderColor: '#789384', borderRadius: 12 },
+  chosen: { backgroundColor: '#e0efe5', borderColor: '#174b3e' },
   title: { fontSize: 28, fontWeight: '700', color: '#174b3e' },
   body: { fontSize: 20, lineHeight: 30, color: '#243b33' },
   banner: { fontSize: 18, lineHeight: 28, padding: 16, borderWidth: 2, borderColor: '#81621b', borderRadius: 8, backgroundColor: '#fff3cb', color: '#59420d' },

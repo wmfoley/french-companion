@@ -1,5 +1,33 @@
 # Test and Acceptance Plan — v0.1
 
+## FC-006D final verification and physical acceptance - 2026-11-15
+
+Product-owner report recorded 2026-11-15: **12 physical Android tests passed, 0 failed, 0 skipped, 0 outstanding. No observations or defects reported.** The supplied coverage includes French text entry, cursor editing, keyboard visibility, grading, retries, Replay, navigation, background/resume and authorization/content correction. These are owner-reported device results, not tests executed by Codex. The individual execution date and per-test case IDs were not supplied; no additional test outcomes are inferred.
+
+**TalkBack physical verification is separately deferred to prepublication testing and remains unverified.** It is not counted as passed or as a skipped case in the twelve completed FC-006 tests. This milestone does not establish publication readiness or educational efficacy across other worksheets/devices.
+
+| Requirement | Automated/browser evidence |
+|---|---|
+| Reference-only questions, source immutability, eligibility, literal leakage exclusions, zero extra parent preparation | typedVocabularyRecall.test.js |
+| Complete terms/articles, NFC/case/trim equivalence, significant accents/internal spaces/punctuation, two meaningful attempts and three outcomes | typedVocabularyRecall.test.js; existing gradeAnswer tests |
+| Authorized Start/Replay/Submit/Next, stable presentation, rapid/stale callbacks, rejected reads, policy/contentRevision invalidation, private grading context | typedPracticeRun.test.js; existing practiceRun/randomization/household tests |
+| Draft gating, equivalent retries, busy/terminal state, input configuration | typedVocabularyInput.test.js (configuration checks do not execute native input) |
+| Actual selection/input/feedback, hidden typed answers, retained draft/cursor, Enter/rapid actions, replay/navigation, policy/correction revocation | verify-household-web.cjs against export/development preview and isolated IndexedDB |
+| Multiple Choice compatibility, parent authorization/review/approval, transaction/CAS/storage boundaries | Existing full regression suite and browser suite |
+
+Final 2026-11-15 results: **npm.cmd test 231/231 passed**, zero failures/cancellations/skips; **npm.cmd run lint passed**; **npm.cmd run export:web passed** (814 modules); **node scripts/verify-household-web.cjs passed**, including all new typed and existing MC/parent/IndexedDB regressions, without runtime/console errors. Git whitespace/conflict-marker, scope, secret-pattern and generated-artifact checks passed. Further detail and Git readiness are recorded in the dated development log. Eight previously deferred Expo SDK 58 patch recommendations remain separate maintenance; no upgrade or dependency-check suppression. Commit authorization remains separate. No capture milestone is started.
+
+
+## FC-006C - Spelling Practice UI verification boundary
+
+Local verification on 2026-11-14: 231/231 automated tests passed, lint passed, web export passed (814 modules), and the full isolated browser suite passed without runtime/console errors. Start/Replay wait for coordinator focus readiness; browser actions wait for visible enabled controls. Controlled browser randomness affects presentation only, and cross-tab storage tests wait for the intended origin/DOM readiness. Existing Parent Review regressions retain their original viewport after the new narrow typed-input checks.
+
+New Node coverage in typedVocabularyInput.test.js checks empty/non-string drafts, retained first-miss response, grading-equivalent Unicode/case/whitespace edits, significant accent/internal-space/punctuation edits, busy/terminal gating and native input configuration. It does not render React Native or execute an Android keyboard. Existing A/B pure/session tests remain required for question generation, eligibility, two-attempt outcomes, randomization, deferred operations and policy/revision enforcement.
+
+The extended isolated browser suite exercises both activity choices with default Multiple Choice, production-household and development Spelling Practice, precompletion answer hiding, blank/equivalent disabled submission, all three outcomes, raw draft retention, cursor/selection and same-input identity during resize, guarded Enter/rapid Submit, Next/completion, fresh replay, discarded navigation drafts/stale DOM callbacks, strict/independent policy, live revocation and content-revision invalidation through actual protected service commands in separate test tabs. Existing multiple-choice and FC-005 browser regressions remain mandatory. Synthetic assignments/credentials use isolated test profiles only.
+
+At C delivery, physical Android acceptance was not yet complete; the subsequent owner-reported D acceptance record above supersedes that pending status. Existing development APK plus Metro is sufficient; no dependency/native changes. Physical TalkBack is still unverified and remains a prepublication accessibility item. C itself did not perform D finalization.
+
 ## FC-005 development-milestone acceptance - 2026-11-14
 
 The owner accepts FC-005 for the current development milestone. Physical Android results are **5A: 9/9 passed; 5B: 6/6 passed; 6A: 6 passed, 1 skipped; total: 21 passed, 1 skipped**. No functional defects were reported. **Physical TalkBack accessibility testing was intentionally skipped and remains unverified**, deferred to prepublication accessibility testing. Automated activity tests and browser checks do not establish TalkBack correctness or publication readiness.
