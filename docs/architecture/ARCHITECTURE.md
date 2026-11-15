@@ -1,5 +1,15 @@
 # Architecture Baseline — v0.1
 
+## Future student navigation and learning-history boundaries
+
+Student-first navigation is planned, not implemented by FC-007A: primary Study an Assignment / Add New Assignment actions; a local assignment list with visible ineligibility explanations; unobtrusive secondary Parent Area access. Starting practice must retain existing strict/independent policy enforcement rather than using approval status alone. Parent-only operations remain PIN-protected at the service boundary. Student-initiated capture must not require parent unlock or confer parent capabilities; capture integration remains future work.
+
+Provisionally FC-008 will separately design local persistence of completed practice passes by assignment, exercise type and assignment content revision. Interrupted/abandoned sessions must not appear as completed grades. A completed pass should support individual vocabulary review with the existing three terminal outcomes, retaining sufficient revision-aware historical information after corrections. Do not persist raw typed mistakes by default. Historical representation, retention and storage contracts require later design; FC-007A adds no schema or persistence. Presentation remains supportive, without competitive ranking. Targeted practice from missed/second-attempt vocabulary is a further future feature requiring explicit implementation authorization. See the PRD and TODO for the product requirements.
+
+## FC-007A preparation boundary - 2026-11-15
+
+FC-006 is committed and synchronized at 0248cfbbc19f4ed0b797600055e53fda99f9ca0f. FC-007A adds only an unconnected pure version-1 preparation/evidence contract, a synthetic test corpus and deterministic tests. See [PREPARATION_MODEL.md](PREPARATION_MODEL.md) and draft [ADR-FC-007-001](../decisions/ADR-FC-007-001.md). Exact source spans, explicit pair associations, exclusions, partial disclosure and independent reliability/safety declarations are checked without changing assignment schema, approval, student eligibility or storage. Contract readiness is not approval or authorization. The future mandatory service-level suitability gate, trusted assessment production and partial-acceptance integration remain unimplemented; current submission is unchanged. No camera, OCR, AI, network, permission, dependency or UI work is included.
+
 ## FC-006 current practice architecture - 2026-11-15
 
 Exactly two exercise types are implemented: vocabulary_multiple_choice (the backward-compatible default) and typed_vocabulary_recall, presented as Spelling Practice. Both use reference-only question definitions, the existing in-memory practiceRun coordinator, authorized assignment snapshots and the same live eligibility/contentRevision verifier. Start/Replay/Submit/Next, resume and existing polling retain household-policy enforcement; route exit and invalidated content discard the active run and drafts. No generalized exercise registry or persisted student-performance model was introduced.

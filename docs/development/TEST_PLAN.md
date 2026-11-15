@@ -1,5 +1,11 @@
 # Test and Acceptance Plan — v0.1
 
+## FC-007A preparation contract verification - 2026-11-15
+
+Pure contracts only: `node --test tests/preparationContract.test.js` covers twelve frozen synthetic corpus cases plus exact source/Unicode spans, unknown confidence, explicit pair-region integrity, no positional associations, partial disclosure, uncovered/unreferenced regions, duplicate/supplementary exclusions, malformed/versioned inputs/results, inert hostile text, immutable identities and existing approval/policy compatibility. The corpus has no real child data and establishes no OCR accuracy, safety-detection performance or parent timing result. Safety/reliability labels are test declarations, not classifier output.
+
+Full `npm.cmd test` and `npm.cmd run lint` remain required; existing FC-005/FC-006 regressions must pass unchanged. No new runtime integration, browser, Android, capture, OCR or interpretation verification is claimed. Later acceptance must verify trusted/current assessments, service-level suitability enforcement, partial-set acceptance, original image/text mapping and privacy/retention; those are not established by these tests. Physical TalkBack and eight deferred Expo SDK 58 patches remain separate work. See [PREPARATION_MODEL.md](../architecture/PREPARATION_MODEL.md).
+
 ## FC-006D final verification and physical acceptance - 2026-11-15
 
 Product-owner report recorded 2026-11-15: **12 physical Android tests passed, 0 failed, 0 skipped, 0 outstanding. No observations or defects reported.** The supplied coverage includes French text entry, cursor editing, keyboard visibility, grading, retries, Replay, navigation, background/resume and authorization/content correction. These are owner-reported device results, not tests executed by Codex. The individual execution date and per-test case IDs were not supplied; no additional test outcomes are inferred.

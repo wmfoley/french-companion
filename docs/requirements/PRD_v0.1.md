@@ -1,5 +1,21 @@
 # French Immersion Study Companion
 
+## Approved future navigation and learning history — not implemented in FC-007A
+
+Student-first landing navigation will offer two primary actions: **Study an Assignment** and **Add New Assignment**. Study opens the locally available assignment list. Ineligible assignments remain visually distinct with an explanation of the required action. Strict household policy blocks unapproved assignments requiring review; independent-practice eligibility follows the existing authorization rules, not approval status alone. The Parent Area remains unobtrusive secondary navigation with PIN-protected parent operations. Students may initiate worksheet capture without first unlocking the Parent Area; capture initiation grants no parent authorization or approval.
+
+Persistent Grades and Practice History is a separate future milestone, provisionally **FC-008**. Record completed practice passes locally, present history by assignment and exercise type, and retain each pass's assignment content revision. Interrupted or abandoned sessions are not completed grades. Keep presentation supportive rather than competitive. Students will be able to open a completed pass and review vocabulary outcomes: correct_first_attempt, correct_second_attempt and incorrect_after_two_attempts. Preserve enough revision-aware historical information to review accurately after assignment corrections; the storage design is deferred. Do not persist raw typed mistakes by default. Future targeted practice using missed or second-attempt vocabulary requires separate authorization and is not being implemented now.
+
+These requirements authorize documentation only: no navigation, capture, performance schema, storage or practice-behaviour changes in FC-007A.
+
+## FC-007A approved preparation direction - 2026-11-15
+
+Initial intake support targets mostly printed French Immersion vocabulary lists and term-definition tables. Clearly disclosed partial study sets are permitted; unsupported or unresolved content must not silently enter practice or be filled with invented educational content. Generated-question inspection is optional. Target typical parent active preparation time is approximately 120 seconds, a future measured quality target rather than a demonstrated result.
+
+FC-007A implements pure versioned evidence/preparation validation and a synthetic corpus only. Suitability, reliability and content safety are distinct; unknown confidence is never certainty. Preparation does not approve assignments, verify source authenticity or authorize practice. Existing detailed/risk-acknowledged approval, strict/independent household policy and exercise contracts are unchanged. A mandatory service-level suitability gate and partial-acceptance/disclosure integration require a later increment. Camera, OCR, AI, storage integration and new parent actions are not implemented. See [preparation model](../architecture/PREPARATION_MODEL.md) and draft [ADR-FC-007-001](../decisions/ADR-FC-007-001.md) for explicit deferred decisions, including privacy/retention and separately authorized future cloud assistance.
+
+FC-006 is accepted, committed and synchronized at 0248cfbbc19f4ed0b797600055e53fda99f9ca0f. Earlier commit-preparation descriptions below are historical; physical acceptance evidence remains intact.
+
 ## FC-006 implemented product scope - 2026-11-15
 
 The approved incremental scope adds Spelling Practice alongside the existing default Multiple Choice. It derives up to five definition-to-complete-French-term questions from existing eligible vocabulary without new parent preparation, configuration, editing or approval. Articles remain part of the expected term. Case, surrounding whitespace and canonical Unicode equivalence follow the existing grader; accents, internal whitespace and punctuation remain significant. Two meaningful attempts, retained editable text after a first miss, completion-only answer feedback and the existing participation-focused celebration are implemented. Blank and grading-equivalent incorrect resubmissions consume no attempt; no numerical student score or persistent responses are added.

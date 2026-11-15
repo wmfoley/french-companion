@@ -1,6 +1,30 @@
 # Development Backlog — v0.1
 
 
+## Future — student-first navigation (not implemented in FC-007A)
+
+- [ ] Student-focused landing page: Study an Assignment and Add New Assignment as primary actions; Parent Area as unobtrusive secondary navigation with PIN-protected parent-only operations.
+- [ ] Study opens local assignments; visually distinguish ineligible assignments and explain required action. Strict policy blocks unapproved content requiring review; independent eligibility uses existing authorization rules rather than approval status alone.
+- [ ] Permit students to initiate worksheet capture without first unlocking the Parent Area; no parent privileges or approval granted by capture. Requires separately authorized capture/UI implementation.
+
+## FC-008 (provisional) — Persistent Grades and vocabulary-level review
+
+- [ ] Separately design/implement local completed-pass history by assignment and exercise type, preserving the associated assignment content revision. Interrupted/abandoned sessions are not completed grades; keep the experience supportive rather than competitive.
+- [ ] Let students open a completed pass and review individual vocabulary outcomes: correct_first_attempt, correct_second_attempt, incorrect_after_two_attempts. Preserve sufficient revision-aware historical information for accurate review after assignment corrections; do not persist raw typed mistakes by default.
+- [ ] Future targeted practice may use missed/second-attempt vocabulary, but is not authorized for implementation now. No history persistence, schema or practice-behaviour change in FC-007A.
+
+## FC-007A - Preparation contracts and evidence corpus
+
+**Current status (2026-11-15):** Product owner accepts the implementation and architecture verification findings; final documentation reconciliation and commit-readiness verification are authorized. No FC-007B work or commit authorization. FC-006 is committed and synchronized at 0248cfbbc19f4ed0b797600055e53fda99f9ca0f; its earlier commit-preparation notes below are historical.
+
+- [x] Draft ADR-FC-007-001 with explicit unresolved confidence, trusted assessment, partial-acceptance, privacy/retention and future cloud decisions.
+- [x] Version-1 evidence/preparation validation, exact source spans, explicit pair associations, deterministic exclusions, suitability/reliability/safety separation and partial disclosure; no assignment or authorization changes.
+- [x] Twelve synthetic non-identifying corpus cases; focused tests plus existing regression suite. No real OCR performance or safety-classification claim.
+- [x] Owner accepts FC-007A implementation and architecture verification findings. ADR remains preserved as drafted; no staging/commit/push authorized.
+- [ ] Later increment: trusted/current assessment and mandatory service-level suitability enforcement, including the existing raw submission boundary and partial-acceptance integration. Contract readiness alone cannot authorize submission or practice.
+- [ ] Capture increment decisions: permissions, local images, retention/deletion/backup/privacy, resource bounds and original-image links. No camera/OCR/cloud/storage integration in A.
+- [ ] Measure the approximately 120-second parent active preparation target on supported worksheets; generated-question inspection stays optional. No new parent action in A.
+
 ## FC-006 - Typed Vocabulary Recall / Spelling Practice
 
 **Current status (2026-11-15):** FC-006A/B/C are implemented; FC-006D final verification and documentation reconciliation are authorized. The owner reports physical Android acceptance: 12 passed, 0 failed, 0 skipped, 0 outstanding; no observations or defects. TalkBack remains separately deferred/unverified. No dependency, native, schema, household-service, Parent Area or persistence changes. One coherent milestone commit requires explicit owner authorization; no staging, commit or push yet.
