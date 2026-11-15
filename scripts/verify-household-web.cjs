@@ -599,7 +599,7 @@ try {
   if(await evaluate(`document.querySelector('input[aria-label="Ta réponse en français"]')!==null`))throw Error('Policy revocation retained typed input');
   await clickText('Retour à l’accueil'); await clickText('Study an Assignment');
   await expectText('Un parent doit revoir cette leçon avant la pratique.');
-  if (await evaluate(`[...document.querySelectorAll('a[href*="assignmentId=fc004n-development-sample"]')].some(el=>!el.closest('[aria-hidden="true"],[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')`)) throw Error('Strict blocked assignment has a practice link');
+  if (await evaluate(`[...document.querySelectorAll('a[href*="/practice?"][href*="assignmentId=fc004n-development-sample"]')].some(el=>!el.closest('[aria-hidden="true"],[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')`)) throw Error('Strict blocked assignment has a practice link');
   await call('Page.navigate', {url:'http://localhost:8083/practice?assignmentId=fc004n-development-sample'});
   await expectText('Cette leçon attend une autorisation selon la politique du foyer.');
   if (await evaluate(`document.body.innerText.includes('C’est parti !')`)) throw Error('Blocked deep link exposed Start');
@@ -608,7 +608,7 @@ try {
     const token=await testService.unlock('123456'),p=await testService.getParentPolicy(token);
     await testService.setPracticePolicy(token,{expectedRevision:p.revision,practiceMode:'allow_independent_practice',acknowledgeRisk:true});testService.lock();return true;})()`, 'http://localhost:8083');
   await expectText('Prête à pratiquer — pas encore revue par un parent.');
-  if (!await evaluate(`[...document.querySelectorAll('a[href*="assignmentId=fc004n-development-sample"]')].some(el=>!el.closest('[aria-hidden="true"],[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')`)) throw Error('Resume did not refresh independent assignment eligibility');
+  if (!await evaluate(`[...document.querySelectorAll('a[href*="/practice?"][href*="assignmentId=fc004n-development-sample"]')].some(el=>!el.closest('[aria-hidden="true"],[inert]')&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')`)) throw Error('Resume did not refresh independent assignment eligibility');
   console.log('PASS FC-007-UX1: two primary Home actions, honest capture/history destinations, empty list, compatibility redirect, strict blocked rows/deep links and resumed independent-policy availability.');
   await clickText('Retour à l’accueil'); await startSampleSpelling();
   await fill('Ta réponse en français','unsaved draft before correction');
@@ -624,6 +624,62 @@ try {
   if(await evaluate(`document.querySelector('input[aria-label="Ta réponse en français"]')!==null`))throw Error('Correction retained stale typed draft');
   await clickText('Retour à l’accueil'); await startSampleSpelling();
   console.log('PASS FC-006C household: production eligible spelling, strict/independent enforcement, live policy revocation, correction revision invalidation, fresh re-entry and no retained drafts.');
+  // Context is an assignment ID only; approval still requires the ordinary parent UI.
+  const handoffAssignment = { ...fixture, id: 'browser-handoff-lesson', title: 'Handoff browser lesson' };
+  await inOtherTab(`(async()=>{${loaderSource}await testService.submitAssignment(${JSON.stringify(handoffAssignment)});return true;})()`);
+  await call('Page.navigate', {url:'http://127.0.0.1:8082/assignments'});
+  await expectText('Handoff browser lesson');
+  const handoffHref = await evaluate(`document.querySelector('a[aria-label="Ask a Parent — Handoff browser lesson"]').getAttribute('href')`);
+  const handoffUrl = new URL(handoffHref, 'http://127.0.0.1:8082');
+  if (handoffUrl.pathname !== '/parent' || handoffUrl.searchParams.size !== 1 || handoffUrl.searchParams.get('assignmentId') !== 'browser-handoff-lesson') throw Error('Handoff leaked extra route context');
+  await evaluate(`document.querySelector('a[aria-label="Ask a Parent — Handoff browser lesson"]').click()`);
+  await expectText('Unlock Parent Area');
+  if (await evaluate(`document.body.innerText.includes('Reviewed:') || document.body.innerText.includes('Handoff browser lesson')`)) throw Error('Handoff revealed details before PIN');
+  await fill('Parent PIN','123456'); await clickText('Unlock Parent Area');
+  await expectText('Handoff browser lesson'); await expectText('Reviewed: 0 of 20.');
+  await inOtherTab(`new Promise(resolve=>setTimeout(()=>resolve(true),200))`);
+  await expectText('Unlock Parent Area');
+  if (await evaluate(`document.body.innerText.includes('Reviewed:')`)) throw Error('Context details survived background lock');
+  await fill('Parent PIN','123456'); await clickText('Unlock Parent Area'); await expectText('Reviewed: 0 of 20.');
+  await clickText('Approve all without checking each item');
+  // Use the confirmation checkbox, not any field-review declaration.
+  await evaluate(`[...document.querySelectorAll('[role="checkbox"]')].find(el=>el.innerText.includes('risk')&&!el.closest('[aria-hidden="true"],[inert]')).click()`);
+  await clickText('Confirm assignment acceptance'); await expectText('Approved without detailed review.');
+  await clickText('Return to Assignments'); await expectText('Handoff browser lesson');
+  if (await evaluate(`!!document.querySelector('a[aria-label="Ask a Parent — Handoff browser lesson"]')`)) throw Error('Return retained stale review requirement');
+  if (!await evaluate(`[...document.querySelectorAll('a')].some(el=>el.innerText==='Handoff browser lesson'&&el.getAttribute('href')?.includes('/practice?'))`)) throw Error('Return failed to refresh approved practice');
+  if (await evaluate(`document.body.innerText.includes('C’est parti !')||document.querySelector('input[aria-label="Ta réponse en français"]')!==null`)) throw Error('Handoff return restored practice');
+  const readHandoffState = () => evaluate(`(async()=>{${loaderSource}
+    const state=await load('src/services/storage/indexedDbStore.js').createIndexedDbStore(indexedDB).read();
+    return JSON.stringify({assignments:state.assignments,policy:state.household.policy});})()`);
+  const beforeInvalidContexts = await readHandoffState();
+  for (const scenario of [
+    {path:'/parent?assignmentId=nonexistent-test-assignment',context:true},
+    {path:'/parent?assignmentId=',context:true},
+    {path:'/parent?assignmentId=..%2Finvalid-assignment',context:true},
+    {path:'/parent',context:false},
+  ]) {
+    await call('Page.navigate', {url:'http://127.0.0.1:8082'+scenario.path});
+    await expectText('Unlock Parent Area');
+    if (await evaluate(`document.body.innerText.includes('Reviewed:')||document.body.innerText.includes('Handoff browser lesson')`)) throw Error('Invalid/missing context exposed protected details before PIN: '+scenario.path);
+    await fill('Parent PIN','123456'); await clickText('Unlock Parent Area');
+    if (scenario.context) {
+      await expectText('This assignment is unavailable.');
+      if (await evaluate(`document.body.innerText.includes('Reviewed:')||document.body.innerText.includes('Handoff browser lesson')`)) throw Error('Invalid context selected another assignment: '+scenario.path);
+      await clickText('Back to household settings');
+    }
+    await expectText('Review assignments'); await expectText('Saved policy: Parent approval required');
+    if (!scenario.context && await evaluate(`document.body.innerText.includes('This assignment is unavailable.')||document.body.innerText.includes('Assignment review')`)) throw Error('Missing context did not open ordinary Parent Area');
+    await clickText('Review assignments'); await expectText('Handoff browser lesson');
+    if (scenario.context) { await clickText('Return to Assignments'); await expectText('Mes leçons'); }
+    else { await clickText('Return to student home'); await expectText('Bienvenue !'); }
+    if (await readHandoffState() !== beforeInvalidContexts) throw Error('Context navigation changed assignment/review/approval/policy state: '+scenario.path);
+    console.log('PASS invalid-context scenario: '+scenario.path+'; PIN gating, safe selection/fallback, ordinary navigation and unchanged assignment/policy state.');
+  }
+  // A direct link after return always requires authentication again.
+  await call('Page.navigate', {url:handoffUrl.href}); await expectText('Unlock Parent Area');
+  if (await evaluate(`document.body.innerText.includes('Reviewed:')`)) throw Error('Direct handoff link bypassed locking');
+  console.log('PASS FC-007-UX2: ID-only handoff, PIN-protected contextual selection, background lock/reread, explicit risk approval, locked return with refreshed availability, no restored practice and safe missing/direct-link handling.');
   await call('Page.navigate', { url: 'http://127.0.0.1:8082/native-pbkdf2' });
   await expectText('Unavailable here. Use the Android development build.');
   if (await evaluate(`document.body.innerText.includes('Run public vector:')`)) throw Error('Native proof exposed on production web');

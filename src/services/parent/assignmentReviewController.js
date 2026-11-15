@@ -30,6 +30,7 @@ function createAssignmentReviewController({ service, getCapability = () => null,
           }
         }
       } else publish({ message: error.code === 'unsupported_document' ? 'Stored assignment data is invalid or unsupported. Nothing was reset.' :
+        view === 'detail' && ['assignment_not_found', 'invalid_field'].includes(error.code) ? 'This assignment is unavailable. Return to the assignment list or household settings.' :
         error.code === 'persistence_failed' ? 'Unable to save or load locally. Reopen the assignment before retrying.' : 'Unable to complete this action. Check the content and confirmations, then reopen the assignment if needed.' });
     } finally { if (current()) { running = null; publish({ busy: false }); } }
   }

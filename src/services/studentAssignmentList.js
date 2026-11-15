@@ -25,7 +25,8 @@ function createStudentAssignmentList({ service }) {
       const items = await service.listPracticeAssignments();
       if (!active || operation !== revision) return;
       publish({ status: 'ready', items: items.map(item => ({ id: item.id, title: item.title,
-        eligible: item.eligible === true, explanation: assignmentStatus(item) })) });
+        eligible: item.eligible === true, explanation: assignmentStatus(item),
+        reviewRequired: item.eligible === false && item.reason === 'approval_required' })) });
     } catch {
       if (active && operation === revision) publish({ status: 'error', items: [] });
     }

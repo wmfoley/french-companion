@@ -23,8 +23,19 @@ test('list reads metadata only and publishes eligible and blocked assignments wi
   await list.enter();
   assert.equal(reads, 1); assert.equal(list.snapshot().status, 'ready');
   assert.deepEqual(list.snapshot().items.map(value => value.eligible), [true, false]);
-  assert.deepEqual(Object.keys(list.snapshot().items[0]), ['id', 'title', 'eligible', 'explanation']);
+  assert.deepEqual(Object.keys(list.snapshot().items[0]), ['id', 'title', 'eligible', 'explanation', 'reviewRequired']);
   data[0].title = 'Changed elsewhere'; assert.equal(list.snapshot().items[0].title, 'Une leçon');
+});
+
+test('Ask a Parent requires an explicitly blocked review-required service result', async () => {
+  const rows = [
+    { ...item(false) }, { ...item(), reason: 'approval_required' },
+    ...['assignment_not_ready', 'invalid_assignment', 'reference_demo_only', 'unknown'].map(reason => ({ ...item(false), reason })),
+    { ...item(false), eligible: undefined },
+  ];
+  const list = createStudentAssignmentList({ service: { async listPracticeAssignments() { return rows; } } });
+  await list.enter();
+  assert.deepEqual(list.snapshot().items.map(value => value.reviewRequired), [true, false, false, false, false, false, false]);
 });
 
 test('loading, empty, failure and retry clear stale eligibility and suppress raw errors', async () => {

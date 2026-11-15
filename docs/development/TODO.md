@@ -1,5 +1,17 @@
 # Development Backlog — v0.1
 
+## FC-007-UX2 — contextual student-to-parent handoff
+
+**Accepted by the owner on combined evidence:** physical Android **18 PASS, 0 FAIL, 1 NOT VERIFIED**; nonexistent, empty, missing and malformed ID cases each PASS in targeted unit/browser verification. Do not count these as additional device passes. TalkBack remains deferred/unverified. Final documentation and commit-readiness verification are authorized; staging, commit and push require separate approval.
+
+- [x] Ask a Parent only for service-derived blocked approval_required assignments; ID-only route context, not a practice bypass or generic unavailable-content workaround.
+- [x] Reuse PIN flow, protected current read and review controller after unlock; safe missing/invalid context, context-change reset and stale-response suppression.
+- [x] Explicit locked Return to Assignments with focus refresh; no auto-approval, policy mutation, exercise launch or retained practice answers. Existing approval/correction, inactivity/background lock and issued-write transaction rules remain intact.
+- [x] Focused unit coverage: 16 combined handoff/list tests (8 newly added); full suite 272/272 and lint passed. Web export/browser results recorded in the log.
+- [x] UX2 milestone accepted: 18 Android passes, no failures; the one non-device-verified scenario is covered by four targeted automated/browser passes, preserving PIN/navigation/session protections and assignment/policy state. Physical tally remains 18/0/1.
+- [ ] FC-007B camera capture; FC-007C native OCR proof; subsequent preparation and trusted service-level enforcement increments remain separately scoped and unauthorized here.
+- [ ] FC-008 persistent Grades, physical TalkBack verification and eight Expo patch recommendations remain deferred. No staging/commit/push authorized.
+
 
 ## FC-007-UX1 — student-first navigation (not implemented in FC-007A)
 
@@ -10,7 +22,7 @@
 - [x] Preserve selected practice and demo routes; redirect no-ID `/practice` to the list. Add honest camera/history informational destinations without persistence or new parent handoff.
 - [x] Local verification: 8 focused / 264 total automated tests, lint, web export and cleaned full browser regressions passed. Scope remains JavaScript/navigation plus tests/docs; no persistence, authorization, schema, dependency or native change.
 - [x] Owner completed physical Android acceptance: 18/18 PASS in the five categories above. No defects/observations reported; TalkBack is not included as passed.
-- [ ] FC-007-UX2 remains future, separately scoped/authorized work; no contextual parent handoff or additional UX implementation in UX1. FC-007B capture integration, FC-008 history, TalkBack verification and eight Expo patches remain deferred separately.
+- [x] UX1 did not implement contextual parent handoff; subsequently authorized UX2 status is recorded above. FC-007B capture integration, FC-008 history, TalkBack verification and eight Expo patches remain deferred separately.
 - [ ] Permit students to initiate worksheet capture without first unlocking the Parent Area; no parent privileges or approval granted by capture. Requires separately authorized capture/UI implementation.
 
 ## FC-008 (provisional) — Persistent Grades and vocabulary-level review

@@ -28,6 +28,8 @@ export default function AssignmentsScreen() {
       {item.eligible ? <Link href={{ pathname: '/practice', params: { assignmentId: item.id } }} style={styles.link}>{item.title}</Link>
         : <Text style={styles.body}>{item.title}</Text>}
       <Text style={styles.body}>{item.explanation}</Text>
+      {item.reviewRequired && <Link href={{ pathname: '/parent', params: { assignmentId: item.id } }}
+        accessibilityLabel={`Ask a Parent — ${item.title}`} style={styles.link}>Ask a Parent</Link>}
     </View>)}
     <Link href="/" style={styles.link}>Retour à l’accueil</Link>
   </Screen>;

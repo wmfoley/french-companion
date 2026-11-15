@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { AppState, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Screen from '../src/components/Screen';
 import { localHousehold } from '../src/services/localHousehold';
@@ -11,7 +11,15 @@ import AssignmentReviewPanel from '../src/components/parent/AssignmentReviewPane
 const STRICT = 'require_parent_approval';
 const INDEPENDENT = 'allow_independent_practice';
 
-export default function ParentArea() {
+export default function ParentRoute() {
+  const { assignmentId } = useLocalSearchParams();
+  // Changing untrusted context starts a fresh locked screen, not a new capability.
+  return <ParentArea key={JSON.stringify(assignmentId ?? null)} assignmentId={assignmentId} />;
+}
+
+function ParentArea({ assignmentId }) {
+  const router = useRouter();
+  const contextual = assignmentId !== undefined;
   const capability = useRef(null);
   const reviewRef = useRef(null);
   const live = useRef(false);
@@ -98,6 +106,13 @@ export default function ParentArea() {
     const saved = await localHousehold.getParentPolicy(token);
     if (!current() || capability.current !== token) return;
     setPolicy(saved); setChoice(saved.practiceMode); setStage('policy');
+    if (contextual) await reviewController.open(assignmentId);
+  }
+  function returnToAssignments() {
+    // Exit immediately even while a read/write is pending. Existing epoch and
+    // transaction rules suppress late protected results; issued writes stay atomic.
+    lock();
+    router.replace('/assignments');
   }
   return <Screen onInteraction={activity} keyboardShouldPersistTaps="handled">
     <Text accessibilityRole="header" style={styles.title}>Parent Area</Text>
@@ -150,6 +165,7 @@ export default function ParentArea() {
         {`#${event.operation} ${event.stage} ${event.event}: stage ${event.durationMs} ms, total ${event.elapsedMs} ms${event.category ? ` (${event.category})` : ''}`}
       </Text>)}
     </View>}
+    {contextual && <Action onPress={returnToAssignments}>Return to Assignments</Action>}
     <Link href="/" style={styles.link}>Return to student home</Link>
   </Screen>;
 }
