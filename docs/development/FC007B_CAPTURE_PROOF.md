@@ -1,5 +1,298 @@
 # FC-007B capture technology proof
 
+## Gate 4B.2B-2A: finalized recovery and duplicate-scope verification (2026-11-17)
+
+Inspected actual service, file adapter and SQLite checkpoints. Expected digest/byte
+count, reserved page/asset IDs and stagingOwner are committed at hashed phase BEFORE
+final file creation. Recovery at hashed phase finds an existing final and hashes it
+instead of copying/overwriting it; finalized-phase recovery also hashes before commit.
+Core metadata and completed journal commit atomically, not as independent writes.
+No missing-digest correction was needed. Only a clarifying internal-API comment and
+five targeted tests were added; no adoption behavior redesign.
+
+New real-filesystem/SQLite tests deliberately stop WITHOUT releasing the owner lease,
+close/reopen the database and exercise both hashed and finalized checkpoints. They
+compare durable digest with independent Node crypto SHA-256, count reads of the existing
+final file, disable copy/finalize to prove neither is repeated, preserve exact bytes/ID,
+and check one metadata revision despite replay. Active owner rejects until lease expiry;
+corrupt final bytes and stale manifest reject with no available asset. Prior stale-owner
+checkpoint test remains. This models persisted process-stop state; it is not an actual
+Android process kill, fsync or power-loss test.
+
+Duplicate-scope finding: there is NO implemented multi-household partition or parent
+coordinator in this service. It scans only its injected store, expected to belong to
+one trusted installation/household. Constructor is INTERNAL ONLY and cannot be exported
+as a direct untrusted endpoint. A caller cannot choose householdId/store/scope through
+the strict adoption request/input; new tests reject those extra fields. Saved findings
+default off. Only trusted construction may inject authorizedSavedScope; it must validate
+the actual parent capability/session AND store-to-household mapping before/after reads.
+Object identity checks detect changed provider results, NOT authenticity of the object.
+A malicious constructor can inject an always-allow provider or wrong store: this core
+service cannot prevent that and must not be described as enforcing household auth.
+
+New unscoped test successfully adopts duplicate bytes from a second capture without
+returning any saved-match metadata; tests retain authorized category/count-only findings,
+revocation suppression and nonblocking duplicate behavior. No saved IDs/paths/titles
+are included in duplicate findings. Current unsaved asset response is not a saved-source
+detail response. Future coordinator must establish ownership/authorization before any
+UI/service integration; no caller-supplied completeness/scope object is evidence.
+
+No production UI, household/assignment records, file deletion, automatic cleanup,
+Capture Proof, dependencies or native builds changed. Existing injected decoder/capacity
+limits and native verification prerequisites remain. Gate status/results in development
+log; READY FOR GATE 4B.2B-2A REVIEW subject to passing verification.
+
+## Gate 4B.2B-2: isolated immutable image adoption (2026-11-17)
+
+Implemented an injected private-file adapter (captureImageFiles.js), internal adoption
+service (captureImageAdoption.js) and narrow SQLite journal extension. Not wired to
+production UI, household services or existing images. No installed Dev/device access,
+parent-auth changes, file deletion, draft cleanup, dependency upgrades or native build.
+The filesystem adapter requires a platform driver; native Expo driver binding and
+Android runtime verification are still pending, not inferred from Node test success.
+
+### File contract and immutable layout
+
+Trusted configuration supplies disjoint private repository root and allowed capture
+temporary roots. Root must be app-owned durable storage in future integration, never
+gallery/cache for saved assets. Adapter accepts confined file:// temporary sources,
+rejects traversal/encoded/backslash paths and builds destinations only from validated
+opaque IDs: root/staging/<operationId>-<attemptOwner>, root/assets/<assetId>.
+Original filenames never determine identity. Percent-encoded source paths are currently
+rejected conservatively; future native intake must resolve acceptable references
+explicitly rather than relax confinement implicitly. No source move/delete API exists.
+
+Driver port: stat (confirmed exists/missing, file type, byte size), imageInfo (decoded
+oriented dimensions and actual MIME), availableBytes, mkdir, exclusive copy/finalize
+and async bounded chunks. It MUST distinguish access uncertainty from confirmed absence,
+reject symlink escape, implement no-overwrite semantics and confine private roots.
+Installed Expo File.exists can also be false for access denial, so it is insufficient
+alone for this stat contract. Native binding needs specific error/absence verification.
+No production native implementation of this port is claimed by the isolated tests.
+
+Capacity checked before new reservation and again before copying; unknown/invalid free
+space blocks, insufficient space reports failure, no fixed quota/automatic eviction.
+Current conservative reservation is twice source bytes for retained staging plus final;
+concurrent capacity changes can still cause I/O failure and remain recoverable.
+
+SHA-256 uses existing @noble/hashes/sha2.js incrementally in 64-KiB chunks, closing
+driver handles on all exits. Source before/copy/source after digests must agree, sizes
+must be complete, decoded dimensions/MIME must match supplied metadata. Final bytes
+are hashed and compared before availability. No hash-on-render behavior. Driver/raw
+exceptions are sanitized so paths/native error details are not returned by the service.
+
+### Durable adoption and SQLite extension
+
+Separate capture DB upgrades user_version1 to2 transactionally, preserving metadata
+authority/journal; no household or assignment schema change. Adds adoptions(id PK,
+state JSON) referencing operations. State is strictly validated: immutable requested
+source/capture/geometry/method, reserved asset/page IDs, reserved/hashed/finalized/
+completed phase, digest/byte count, durable stagingOwner and current owner/lease expiry.
+Canonical manifest remains sole educational capture metadata authority. Journal stores
+private temporary URI only for this authorized recovery workflow; never log/display it.
+Earlier no-path journal restriction is superseded for this private adoption record only.
+
+1. Validate source confinement/capacity, draft eligibility and page20 limit including
+   pending reservations. Persist exact idempotency request and stable page/asset IDs.
+2. Claim durable owner with 60-second lease; competing active claim rejects. Owner must
+   be a fresh unguessable attempt identity from trusted integration. Clock is injected.
+3. Copy exclusively to attempt staging. Interrupted/ambiguous files are retained, never
+   overwritten/swept. Check original/copy integrity and decoded metadata.
+4. Checkpoint digest/bytes plus staging owner as hashed; finalization resumes the EXACT
+   recorded staging reference across restart, not a newly generated path.
+5. Finalize exclusively into immutable final asset. Existing final bytes may be reused
+   only after exact digest/size verification. Verify and checkpoint finalized.
+6. Reverify final file and ownership; core addPage with reserved IDs, manifest SQL CAS,
+   completed adoption operation and completed adoption state commit in ONE SQLite
+   transaction. Manifest revision ledger includes both metadata and adoption commits.
+   There is no durable manifest-committed/journal-pending gap to recover separately.
+7. Release only the same owner token. Return asset reference and scoped duplicate
+   findings. Original source remains untouched; staging is intentionally retained.
+
+No incomplete asset enters core availability. Lease/owner checks occur around file
+work and every checkpoint; finalization is no-overwrite even across a lease expiry.
+Lease takeover after expiry rejects stale checkpoints/releases. A long hash may outlive
+lease and fail safely; resume verifies rather than blindly renewing. Correct clock,
+native no-replace semantics and process coordination require Android evidence. Do not
+claim general cross-process/power-loss recovery solely from single-process tests.
+
+Global manifest CAS remains conservative: if unrelated metadata advances the expected
+revision, final commit rejects and preserves reserved/final files for reconciliation.
+No automatic revision rebasing or deleting unreferenced files. Repeated completed
+request verifies actual final bytes and returns the same asset without another commit;
+changed input under the same key rejects. Lost commit acknowledgement safely replays.
+Failed terminal journal operations cannot be claimed again. Generic pending/blocked/
+retryable/failed records remain available to future recovery orchestration; service
+failures retain unresolved work rather than fabricate physical success.
+
+### Integrity and duplicate contracts
+
+Explicit service verify(assetId) checks bytes and persists changed available/corrupt or
+unexpectedly_missing observations through a separate core-observe CAS/journal mutation.
+No intentionally-deleted state is fabricated; existing tombstone returns as such without
+reading files. verify is an internal trusted workflow port, not a parent authorization
+mechanism. Cached availability() does no I/O/hash and labels available metadata
+not_recently_verified; an explicit fresh verification returns its actual observation.
+Adoption pending/failed is journal state, not available image state. Corruption/missing
+never modifies approval, source fidelity or practice policy.
+
+CAP-002 exact matches compare SHA-256 AND byte count. Current-capture findings cover
+other current pages, excluding the same page/asset. Saved-worksheet matches are confined
+to this single local installation capture DB and require an injected authorization
+checker returning the SAME live opaque session/scope object before and after discovery.
+Absent/changed/revoked scope suppresses saved findings entirely. Checker must validate
+the actual parent/session and this repository's household scope; arbitrary caller
+objects/booleans are not authorization. No such household integration is implemented.
+Findings contain only category current_capture/saved_worksheet and count: never saved
+assignment IDs/titles, image paths or source excerpts. Duplicates remain separate assets;
+no automatic reject, merge, retarget or delete. Equal SHA-256 is byte equality checking,
+not visually similar rescan detection. Hash collision resistance is not visual evidence.
+
+### Verification evidence and limits
+
+New tests use real isolated Node filesystem copy/read/hash and real SQLite on-disk
+close/reopen, with an Expo-shaped bridge. Test bytes are synthetic, NON-image fixtures;
+decoder and capacity are explicitly fake adapters. Therefore real byte integrity,
+SQL transactions and recovery are tested, not actual camera image decoding, Android
+free-space behavior or Expo filesystem atomicity. Test-only unlink/corruption affects
+only freshly created temp fixtures; no existing worksheet or household data is touched.
+
+Fault injection: before staging, after copy/before hash, before/after finalization,
+manifest commit, missing staging, partial/wrong bytes, capacity exhaustion and lost
+completion acknowledgement. Tests cover stable identities/retry/restart, stale revision,
+conflicting input, current/saved/nonduplicate categories, scope revocation, owner expiry,
+unknown-vs-missing state and path/error privacy. v1->v2 preservation/rollback tests added.
+
+Remaining: Expo driver implementation/isolated verification of stat permissions, chunk
+reads, decoder orientation/MIME, exclusive copy/finalization and durability; app-private
+root/backup exclusions; trusted parent/scope integration and cross-repository references;
+storage-pressure/clock/long-hash lease behavior on tablet. Main Dev native compatibility
+and signing remain unverified. No build/install authorized. No saved-image deletion or
+production integration; visual similarity and ambiguous-stage cleanup remain deferred.
+
+## Gate 4B.2B-1: durable metadata and recovery journal (2026-11-17)
+
+Implemented src/services/storage/captureSqliteStore.js with injected openDatabase,
+newId and now. It is NOT imported by application startup, household services or UI.
+The opener receives only french-companion-captures-v1.db, separate from household DB.
+No Expo/native import, files, hashing, source-image deletion, cleanup executor,
+cross-repository coordinator or production integration is introduced.
+
+### Implemented authority, schema and version rules
+
+SQLite user_version=1. Transactional fresh initialization is allowed only for an empty
+version-zero database. Any nonempty unversioned DB, missing versioned records/tables,
+unsupported version or invalid state fails closed; never reset or auto-repair it.
+Initialization failure rolls schema, version and initial row back together. No existing
+capture DB migration exists or is invented. Future migrations require explicit versions.
+
+- repository: singleton id=1 primary key, schema_version=1 CHECK, positive revision,
+  canonical serialized manifest TEXT. Core deserialize/validate plus canonical encoding
+  and column/embedded revision consistency checked on EVERY transaction.
+- operations: stable id PK; idempotency_key UNIQUE; checked type metadata/adoption/
+  deletion/cleanup; canonical strictly shaped request; checked phase; positive generation;
+  creation/update times; attempts; fixed error code; unique committed_revision outcome.
+  CHECK distinguishes completed metadata from incomplete/failed external operations.
+- operations_recovery index(phase,id). No capture/page/asset projections needed in this
+  gate; canonical manifest is the sole authority, not independently editable row graphs.
+  All metadata commit revisions 2..current must have exactly one completed journal entry;
+  gaps, malformed journal data, unknown phases and mismatched outcome revisions reject.
+
+No images, paths, worksheets, credentials or arbitrary recovery payloads accepted.
+Journal fields allow only identifiers, whitelisted command/args and fixed codes. IDs
+must not be repurposed to carry private data. Callers are future trusted service code,
+not UI requests or authorization evidence. SQLite private storage/backup exclusions
+and saved-source authorization remain future integration responsibilities.
+
+### API and atomic commits
+
+createCaptureSqliteStore({openDatabase,newId,now}) returns:
+
+- load()/inspect(): defensive current manifest / manifest-plus-journal snapshots.
+- applyMetadata(request): whitelisted existing core createCapture, save or reorder.
+  Strict request keys: operationId, idempotencyKey, expectedRevision, type, command,
+  args, captureId, assetId. Metadata uses null captureId/assetId, with target IDs in
+  whitelisted args. No bind, adoption/retake, availability claim, deletion or expiry
+  command is exposed. Save needs existing core prerequisites, so this gate cannot
+  manufacture an available image in a fresh repository.
+- registerOperation(request): adoption/deletion/cleanup target IDs only, command null,
+  args empty. Persists pending journal intent, not a core asset/deletion intent and
+  not parent authorization to perform any external action.
+- listRecovery(): incomplete pending/retryable/blocked operations, with requiresAdapter
+  true and resumable indicating only whether expected repository revision still matches.
+  It does NOT mean a physical operation may execute without validation/authorization.
+- recordRecovery({operationId,expectedGeneration,expectedRevision,phase,code}): durable
+  retryable/blocked/failed observation, checking manifest revision and SQL generation CAS.
+  inspect also exposes completed/failed history excluded from incomplete enumeration.
+
+All reads/writes use explicit exclusive transactions on the injected transaction handle.
+Metadata execution loads authority, checks expected revision, calls core, validates and
+serializes, then UPDATE repository ... WHERE revision=expected and requires changes=1.
+Completed journal insertion is in the SAME transaction. Any SQL/core/journal/commit
+failure rolls everything back; return only after transaction completion. No JS-only
+revision guard and no in-memory post-write cache. Bound parameters used throughout.
+Typed fixed error codes distinguish stale_revision, stale_operation, idempotency_conflict,
+invalid state/version and generic persistence failure without SQL/private error text.
+
+Exact replay of operation ID/key/request returns replayed=true without reexecuting core.
+Conflicting key OR ID reuse rejects. Replay returns the CURRENT authoritative manifest
+and ORIGINAL operation.committed_revision; it does not mislabel an old snapshot as
+latest. Idempotency keys/operations must be retained while replay is supported. New
+commands with stale revisions reject. Failed requests consume no manifest revision.
+
+### Recovery lifecycle and limits
+
+External operation: pending -> retryable/blocked/failed; retryable and blocked may
+transition between those states or to failed. Failed is terminal. Identical recorded
+phase/code with current generation is a no-op; stale generations still reject. Each
+changed outcome increments generation/attempts once. attempts counts recovery-record
+changes, not actual file-I/O attempts. Fixed codes: retry_requested, adapter_unavailable,
+revision_conflict, reconciliation_required, operation_failed. Timestamp rollback rejects
+an outcome update. No arbitrary logs or recovered image data persisted.
+
+Metadata operations become completed only atomically with core commit. External
+operations CANNOT become completed in this gate. No automatic replay worker, adoption,
+deletion, confirmed absence, digest verification or file-availability fabrication exists.
+Journal entries reserve intent metadata only, not future file/protection leases. Pending
+target IDs may refer to not-yet-adopted entities; they are not resolved file references.
+Generation CAS is preparation for ownership, NOT a cross-process recovery lease. Do
+not run future workers solely because listRecovery reports a pending operation.
+
+SQLite serializes writers and SQL CAS guards conflicting revisions. Tests cover multiple
+store instances on a transaction-serialized bridge, database-enforced CAS and independent
+reader visibility. Cross-process recovery ownership, Android background durability,
+power-loss behaviour and Expo-native transaction execution are NOT established.
+Journal/manifest checks validate structure and revision ledger, not cryptographic
+authentication or tamper-proof replay of historical manifest contents.
+
+### Test strategy and future boundaries
+
+tests/captureSqliteStore.test.js uses REAL Node22 node:sqlite (experimental), bridged
+to the installed Expo transaction API shape. Both in-memory and isolated temporary
+on-disk databases are tested; actual close/reopen verifies persistence. Temp test files
+are unrelated to app DBs/images and removed by test teardown. No mock-only durability
+claim. Native Expo SQLite itself is not executable in this Node suite and remains
+subject to separately authorized isolated-device verification.
+
+Tests cover initialization/version failures, close/reopen pending discovery, defensive
+copies, metadata/journal rollback, CAS/concurrent conflicts, duplicate/conflicting replay,
+commit interruption, migration rollback, unsupported/missing/malformed records, journal
+ledger mismatch, stale recovery, retry/blocked/terminal records, failed retry rollback
+and independent reader seeing no partial write. Existing core/worklet tests retained.
+
+Future gate prerequisites: trusted reference coordinator and parent capability/epoch
+boundary; durable external-operation leases/protections; private file adoption and
+capacity/hash verification; physical absence and deletion recovery; actual cleanup
+execution; observation/projection integration and backup exclusions. None are wired
+to household storage. Metadata registration is never permission to unlink a file.
+Existing Dev identity, data, Capture Proof and assignment validators remain untouched.
+Installed SQLite dependency is reused without upgrades. Main-Dev module/runtime/signing
+compatibility remains unverified; any native test/build/install needs separate approval.
+
+CAP-002 is backlog-only: duplicate detection within the current capture and previously
+saved worksheets; exact SHA-256 belongs to later adoption, visual similarity later still.
+No duplicate detection implemented. No Gate 4B.2B-2 work authorized by this delivery.
+
 ## Gate 4B.2A.1: governed cleanup and trusted reference contract (2026-11-17)
 
 Implemented only the authorized pure cleanup extension; coordinator, SQLite and file

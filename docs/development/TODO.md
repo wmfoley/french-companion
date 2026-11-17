@@ -1,5 +1,19 @@
 # Development Backlog — v0.1
 
+## FC-007B Gate 4B.2B-2 — isolated adoption/integrity
+
+- [x] Gate 4B.2B-2A targeted verification: final-file process-stop state retains digest/ID, active lease blocks, recovery hashes existing bytes without recopy/overwrite, stale/corrupt recovery exposes no asset. Five new tests; adoption21 + SQLite22 =43/43 focused, full409/409, lint passed. Internal-only duplicate scope limitation explicit: no multi-household partition/auth implementation; trusted constructor must bind correct store/live parent scope. Untrusted request scope fields reject; unscoped saved findings off.
+
+- [x] Injected private-file adapter and adoption service implemented with capacity/path checks, bounded SHA-256, exclusive staging/finalization, durable IDs/checkpoints/leases and atomic core/journal completion. Capture DB v1->v2 migration is isolated from household DB. No UI/native driver binding or installed-app integration.
+- [x] Real isolated filesystem/SQLite tests plus injected decoder/capacity/faults:16 adoption tests,22 metadata tests, combined102/102, full404/404, lint passed. Native decoding, permission/absence semantics, storage capacity/durability and main-Dev compatibility remain unverified.
+- [ ] Separately authorize Expo filesystem-driver implementation and isolated Android verification, trusted scope/parent wiring, cross-repository coordination and backup exclusions. No saved-image deletion, automatic cleanup, production integration, build/install or Git publication authorized.
+
+## FC-007B Gate 4B.2B-1 — metadata and recovery journal
+
+- [x] Authorized isolated metadata adapter implemented with canonical SQLite authority, transactional initialization/version checks, database CAS, atomic completed metadata journal, idempotent replay and generation-checked external-operation recovery records. Not wired to app or household storage. New20 real-SQLite tests; combined84/84, full386/386, lint passed. See current proof notes for limits/API.
+- [ ] Gate 4B.2B-2 requires separate authorization: file adoption/hash/capacity, actual deletion/cleanup, coordinator/fences, parent confirmation/authorization and native verification. External journal entries do not establish physical success or permission. No production integration/build authorized.
+- [x] CAP-002 exact SHA-256/byte-size findings implemented in isolated adoption: current other pages and authorized saved-scope category/count only; no automatic rejection/merge/deletion. Real parent-scope integration remains deferred. Visual similarity remains a later enhancement; not implemented.
+
 ## FC-007B Gate 4B.2A — storage/recovery design
 
 - [x] Gate 4B.2A.1 adds pure beginDraftCleanup/completeDraftCleanup: exact expiry/revision/protection checks, frozen pending target, retained metadata/tombstone receipt and idempotent completion. Six new tests; core23/23, full366/366, lint passed. Trusted coordinator contract documented; completeness flags remain untrusted external facts until supplied by that future service.
