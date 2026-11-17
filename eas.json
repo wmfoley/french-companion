@@ -1,6 +1,16 @@
 {
   "cli": { "requireCommit": false },
   "build": {
+    "captureproof": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "development",
+      "env": { "APP_VARIANT": "captureproof" },
+      "android": {
+        "buildType": "apk",
+        "image": "ubuntu-26.04-jdk-17-ndk-r27b-sdk-58"
+      }
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",

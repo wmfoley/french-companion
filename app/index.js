@@ -15,6 +15,7 @@ export default function HomeScreen() {
         <Text style={styles.small}>Développement</Text>
         <Link href="/practice?mode=demo" style={styles.smallLink}>Démo — contenu en attente de validation</Link>
         {Platform.OS === 'android' && <Link href="/native-pbkdf2" style={styles.smallLink}>Native PBKDF2 development proof</Link>}
+        {Platform.OS === 'android' && <Link href="/capture-proof" style={styles.smallLink}>Capture technology comparison</Link>}
       </View>}
     </Screen>
   );

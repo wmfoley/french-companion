@@ -1,5 +1,5 @@
 # Build upload boundary. Git-ignored worktree source under modules/ must remain included.
-.git/
+.git
 .codex/
 .agents/
 .aws/
@@ -18,3 +18,30 @@ coverage/
 credentials.json
 *.apk
 *.aab
+
+# Native outputs only: preserve modules/*/android source and registration.
+/modules/*/android/build/
+/modules/*/android/.cxx/
+/modules/*/android/.gradle/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+*.hprof
+*.jfr
+*.heapprofile
+*.cpuprofile
+*.trace
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+/eas-archive/
+*.pem
+*.p12
+*.pfx
+*.key
+local.properties

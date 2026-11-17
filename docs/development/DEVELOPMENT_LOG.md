@@ -1,5 +1,76 @@
 # Development Log
 
+## 2026-11-17 — FC-007B Gate 3B milestone and capture-contract design
+
+- Owner accepts Gate 3A; production integration remains unauthorized. Inspected the 25 uncommitted paths and documented per-path category, purpose, privacy consideration, dependency and inclusion recommendation. Proposed one coherent Capture Proof milestone, followed by separately authorized repository and production-host/viewer work. No staging or commit performed.
+- Bounded credential-pattern scan found no matches in those 25 files; no image, database, signing key or generated build file is in the inventory. Documentation contains local paths and public account/project/build/certificate metadata, not signing secrets. Development variant camera plugin addition and dev-Android (not package-exclusive) proof-route restriction are explicitly acknowledged.
+- Proposed separate versioned capture/page/asset identities, private-file resolution, source dimensions/method/order, CAS manifests, lifecycle/error states, recovery and ownership. Temporary UI/camera state remains distinct from durable capture evidence and assignment-source links. Filesystem/SQLite recovery is explicitly not one cross-store atomic transaction.
+- Host coordinates navigation/permissions, repository owns durable files/references, viewer stays presentation-only, and existing Parent Review/household service govern approval/eligibility. Capture or successful preview never establishes source fidelity or practice eligibility. Retention/access/limits/linkage and native-host verification remain owner decisions, not policy defaults.
+- Recorded six future gates with dependencies, tests, isolated Android checks, stop conditions and rollback. No production functionality, source/dependency/native/device/household changes, builds, uploads or Git mutations. Automated 53/53 focused and 343/343 full evidence is historical; no test rerun claimed for this documentation-only gate. READY FOR GATE 3B DESIGN AND MILESTONE REVIEW.
+
+## 2026-11-17 — FC-007B Gate 3A production integration design review
+
+- Owner accepts Gate 2B and Gate 2C.2: Gesture Preview passed all nine reported Android categories on Lenovo TB-J616F Android 12. Pinch/pan/Fit performed well. Original CameraView ScrollView comparison reported failed, precise symptom unconfirmed. Disappearing-image issue addressed in Capture Proof under tested conditions; production issue remains open.
+- Read-only implementation review found Add Assignment still informational, no production capture repository/preview host. Documented reusable geometry and lifecycle logic, required production presentation/identity adapters, local parent-scroll ownership, error/orientation/background behaviour, immutable file ownership and unchanged approval/source-fidelity/practice boundaries.
+- Installed Capture Proof proves its own gesture/worklet runtime only. Installed main-Dev module versions and runtime remain unverified; artifact/runtime verification and any data-preserving signed native update need separate approval. No device or household-data access in this gate.
+- Recorded staged implementation, automated verification, isolated physical acceptance, production closure/fallback decisions, stop conditions and rollback plan in FC007B_CAPTURE_PROOF.md. Reviewed 25-path proof scope, empty index and coherent future proof milestone versus later production integration commit. No application, dependency or native changes; no build/install/stage/commit/push. Prior 53/53 focused,343/343 full and lint evidence retained as historical, not rerun.
+- Scanner remains leading candidate, CameraView fallback candidate. Portrait workaround is device-specific; landscape scanner limitation, OCR suitability, physical TalkBack, eight Expo patches and subsequent capture/enforcement/history work remain deferred. READY FOR GATE 3A DESIGN REVIEW; implementation not authorized.
+
+## 2026-11-17 — FC-007B Gate 2C.1 controlled actual-image integration
+
+- Owner accepts Gate 2B following 2B.4 Android: pan axes/diagonal, pinch (5/5 first try), unintended zoom, bounds/reversal, Fit, restart/edge, shape/control checks PASS; comfort COMFORTABLE. Gate 2C.1 implementation authorized; Gate 2C.2 pending, not evidence that original image disappearance is resolved.
+- Added CaptureImagePreview using existing accepted helper/gesture architecture, local source dimensions, fixed measured viewport, Fit/zoom, page/viewport/orientation/background invalidation and safe asynchronous loading. Image identity/source remain stable during gestures/Fit; pages and explicit retry create new lifetimes. Pure lifecycle/selection helpers reject stale loads and retain bounded anonymous diagnostics.
+- CaptureProof dev selector defaults to preserved Original ScrollView Preview; new mode adds active-page Previous/Next with same file references/order. SHA256 comparisons prove capture function and original preview block unchanged. No file ownership, capture config, native/dependency, shared Screen or household changes.
+- Focused53/53 and full343/343 automated checks, worklet compilation/serialized geometry coverage and lint passed. Tests cover contracts and lifecycle, not native pixels/decoder behaviour. Existing APK/Metro expected sufficient. Fallback remains; no production promotion, commit/push or EAS build authorized. Physical Gate 2C.2 protocol recorded in proof notes.
+
+## 2026-11-17 — FC-007B Gate 2B.3 geometry consistency
+
+- Owner reports apparent shape changes and incompatible/partially specified pan-limit observations; broad Android testing suspended. 38x300 is valid rounded tall preset; portrait 640x300/225x300 yields X0/Y158.5 at about 2.056667x, not a defective horizontal bound. Earlier X480/Y450 matches landscape at4x, not that portrait geometry; actual history remains unconfirmed.
+- Confirmed old display mixed live React shape identity with completion snapshots and a historical pan summary. Added one UI-state snapshot with source/fitted/transformed dimensions, scale/bounds/translation, serial/generation/owner/reset provenance; manual read control, shape-button count, ordered geometry requests and stale-layout guards. Missing native timestamps remain an explicit limitation. No gesture/sensitivity/ownership changes or worksheet integration.
+- Focused tests 41/41, full331/331, lint passed; geometry/transition/stale/display tests and compiled/serialized execution retained. Android limited deterministic snapshot verification pending. Gate 2B blocked and Gate 2C unauthorized; original image preview/capture/data untouched.
+
+## 2026-11-17 — FC-007B Gate 2B.2 pan investigation
+
+- Owner accepts Android crash fix; loads/4x/pinch/Fit pass, both pan axes fail, occasional repeated pinch attempts. Gate 2B blocked; no full acceptance or Gate 2C.
+- Compared working direct-setter Gate 1C with current owner/generation/cursor helper path. Installed source supplies native translation/pointers; tests give nonzero square 4x bounds. Actual runtime failure cause not established. No speculative behaviour change.
+- Added bounded synthetic UI-thread pan samples and completion-only report: raw versus applied movement, ownership/stale/pointer/rebase rejects, dimensions/calculated bounds and style target. Pixel movement remains an owner observation. No per-frame JS reports, private data or file changes; Gate 1C coordination/dead zone preserved.
+- Focused geometry/gesture/worklet tests 33/33; full suite 323/323; lint passed. New tests cover diagnostic discrimination/bounds/privacy and compiled execution, not the unknown physical failure. Existing APK/Metro expected sufficient; targeted Android smoke pending.
+
+## 2026-11-17 — FC-007B Gate 2B.1 runtime crash correction
+
+- Owner reports undefined-is-not-a-function at previewTransform.js 1:370. Reconstructed Expo Android/Hermes output confirms undefined rebaseTransform captured by updateTransform before the callee initializes; serialized failing call spans columns 355–394. Original compiled pointer-count transition reproduces the TypeError.
+- Moved only that callee above its caller. No geometry policy, constants, dead zone, ownership, capture/image-preview or persistence changes. Added fixture reproduction and executable compiled/serialized closure regressions; the actual capture test failed before the fix and passed afterward. Prior Node/compile-only tests did not execute captured closures.
+- Focused tests 29/29, full suite 319/319, lint passed. VM execution is not Android evidence. Existing APK/Metro expected sufficient; Gate 2B.1 smoke pending and Gate 2B acceptance remains blocked until retest. Gate 2C unauthorized.
+
+## 2026-11-17 — FC-007B Gate 2B geometry/synthetic stability
+
+- Added pure immutable worklet-compatible previewTransform contracts with centralized approved constants, aspect Fit, geometry pan bounds, focal zoom, continuous cumulative dead zone, single translation ownership, pointer rebasing and generation invalidation. Invalid layout is inert; Fit is visually idempotent and stale gestures cannot undo it.
+- Extended only the synthetic surface with measured rectangle geometry, Fit/zoom buttons, synthetic shape reset and background/viewport lifecycle checks. Preserved accepted Gate 1C ownership/counters. CaptureProof capture/preview/order/cleanup, shared Screen/global navigation and all worksheet/household data untouched. No worksheet viewer, native/dependency/build work.
+- Node 22 focused geometry/gesture checks 27/27; full suite 317/317, zero failures/skips; lint passed. Worklet compiler check validates helper transformation, not runtime behaviour. Android natural-speed stability, neutral-zone comfort and resets remain pending. Existing APK/Metro expected sufficient; no integration beyond synthetic gate authorized.
+
+## FC-007B.3 Gate 1C: isolated gesture ownership correction
+
+- Gate 1B owner evidence: 12/16 responses, natural speed 8/8, slow edge 0/4; vertical pan scrolled parent, staccato feel; controls worked, no warnings. Gate did not pass despite demonstrated runtime compatibility.
+- Added CaptureProof-only native scroll recognizer/root and external blocking relations for experimental pan/pinch. Shared Screen/global navigation unchanged. Stable recognizers, cumulative gesture starts, averaged pan pointers, UI-only update path, completion-only numeric reports and diagnostics below region reduce identified sources of restart/layout churn. Bounded failure/success counters retained with original bundle marker plus Gate 1C marker. No imperative scroll toggling, dependency/native/build/capture/image-preview changes.
+- Focused contracts 4/4, full suite 294/294; lint passed after using supported shared-value setters in memoized callbacks. Tests are static wiring/regression evidence, not proof of Android ownership or smoothness. Android Gate 1C pending; Gate 2 unauthorized.
+
+## FC-007B.3 Gate 1B: read-only gesture reliability analysis
+
+- Owner confirms Gate 1A runtime paths work on installed APK: visible button-driven worklet, JS tap, surface touch, pinch/pan recognition, surrounding controls; no warnings. Intermittent/slower-is-better recognition leaves reliability unverified and Gate 2 unauthorized.
+- Inspected default native activation slop, detector updates, local root within parent scrolling and gesture-relative/clamped values. Parent interception is plausible, not proven; JS numeric throttling does not throttle animated styles. Existing counters support a 16-attempt controlled speed/location comparison, with explicit diagnostic limitations. No application/test/dependency/native changes and no tests rerun in this documentation-only analysis.
+
+## FC-007B.3 Gate 1A: investigate failed gesture runtime experiment
+
+- Owner: pinch/pan and metrics unchanged; surrounding scroll/control worked; no warnings/crashes. Gate 1 failed, not accepted. Static inspection found no definitive cause; parent interception remains a hypothesis.
+- Added local bounded touch/recognition/delivery counters, independent JS Gesture Handler tap pad, bundle marker and button-driven UI-worklet toggle. Original capture/preview/diagnostics and parent scrolling unchanged. No new dependencies, native configuration or APK.
+- Node 22 focused tests 3/3, full suite 293/293 and lint passed. Whitespace/conflict checks passed with existing line-ending notices. Static coverage does not prove Android recognition or rendering. Gate 1A Android retest pending; Gate 2 not authorized.
+
+## FC-007B.3 Gate 1: isolated gesture runtime experiment
+
+- Added synthetic development-only pinch/two-finger pan using installed modules. Existing capture, previews, diagnostics, files, ordering and cleanup unchanged. No shared Screen/navigation/native/dependency changes.
+- Focused static contracts: 2/2 passed; full Node 22 suite: 292/292 passed. These do not establish native execution. Android worklet/gesture compatibility and surrounding scroll/control behaviour await owner verification. Gate 2 remains unauthorized; no new APK expected.
+- Owner diagnostics confirm no-scroll Fit works, but scrolling then Fit fails for photos and scanner pages; opening diagnostics does not recover visibility. Native cause remains unconfirmed. Portrait scanner workaround remains device-specific.
+
 ## FC-007-UX2 final owner acceptance — combined physical and targeted verification
 
 - Owner accepts UX2. Physical Android record: **18 PASS, 0 FAIL, 1 NOT VERIFIED**. All other reported acceptance checks passed, including PIN protection, contextual selection, review cancellation, approval, return navigation, session locking, background expiry and practice regression. The one remaining invalid/missing-ID scenario is covered by separate targeted unit/browser evidence, not another physical pass. Device execution dates/individual case IDs were not supplied and are not inferred.
@@ -367,3 +438,88 @@
 - Inspected 390px Parent Area screenshot: wrapped readable text, large controls and straightforward saved policy. Android/device/screen-reader behavior untested. Native storage, secure credential/KDF adapters, transactional policy parity and lifecycle/device verification are required before enabling native household practice. Browser PIN cost was exercised, not benchmarked across child tablets.
 - Updated charter, PRD, architecture, assignment/exercise models, README, TODO and test plan; preserved educational fixture text, assignment schema and original spelling grader. CURR-001 remains future, disabled by default and parent-controlled. No OCR/AI/cloud/Supabase, accounts, deployment, commits or pushes. Existing dependency advisories unchanged/not re-audited.
 - Limitations: local authorization cannot resist device/devtools/code/storage control; initial setup must be supervised; no in-app PIN recovery/change or cloud recovery. Student attempts remain memory-only. Existing/new receipt-free approved documents do not pass strict eligibility; FC-005 must create revision-bound reviewed/bulk acceptance evidence. FC-004 foundation is complete on web; FC-005 review/acceptance and future intake are next for planning. Review/correction and independent intake must remain distinct.
+## FC-007B Stage 1 corrections and native inspection
+
+Owner-authorized captureproof-only blockedPermissions emit READ/WRITE_EXTERNAL_STORAGE
+removal directives after regeneration. Original expo start --android script restored
+after prebuild rewrote it. Variant tests confirm no exclusion leakage into development
+or default configuration. Focused 8/8, full 280/280, lint passed; no Gradle/build tasks.
+Package/namespace/label/scheme match the isolated captureproof identity. No microphone
+request in source manifest. Final merged manifest is deferred to Stage 2, not claimed
+verified. SecureStore backup references resolve to library XML with exclusions; native
+autolinking resolves FcNativePbkdf2Module. SDK 37.0/37.0.0/NDK 27.1.12297006 installed.
+CMake absent and application version unpinned: effective AGP selection must be confirmed
+before further SDK install. Generated android/ is ignored; no new signing key generated.
+Android 12 tablet was authorized, dev package present and proof absent. Existing dev
+app/data untouched; no APK build/install or source upload. Stage 1 ready for Stage 2
+review with these prerequisites. Earlier replacement-app instructions are superseded
+by the isolated variant section in FC007B_CAPTURE_PROOF.md.
+
+# FC-007B capture comparison proof — 2026-11-15
+
+Implemented development-only CameraView/document-scanner comparison with cache-owned
+copies, explicit cleanup, previews, pixel zoom and per-page dimensions/bytes/timing.
+Native work stays serialized after route exit; stale results are suppressed.
+No household/assignment storage, approvals, OCR or production capture changes.
+Added expo-camera ~58.0.14 and direct expo-file-system ~58.0.13; no unrelated patches.
+Node 22.23.4: focused 4/4, full suite 276/276, lint and production web export passed.
+Production/development Android JS exports and complete browser regressions also
+passed. Browser first stopped because required localhost:8083 Metro was absent;
+rerun with the development server passed without runtime/console errors. A lint
+rerun initially included generated development Android JS; moved only that export
+under ignored .expo and final lint/full tests passed. No lint rules were changed.
+Config confirms development identity/scheme and CAMERA permission only. Dependency
+check reports exactly the eight previously deferred patches; none were upgraded.
+Installed SDK source confirms scanner capability is CameraView.isDocumentScannerAvailable.
+Physical Android testing is pending. No java/adb on PATH or configured Android/JDK
+environment was found; APK build/signing requires owner review. No cloud build,
+source upload, install, commit or push. See FC007B_CAPTURE_PROOF.md.
+Existing TalkBack deferral and eight Expo patch recommendations remain unchanged.
+
+# FC-007B EAS Gate 1 — 2026-11-16
+
+Prepared captureproof-only internal development APK profile with development
+environment and APP_VARIANT=captureproof. Pinned documented image
+ubuntu-26.04-jdk-17-ndk-r27b-sdk-58; official Expo infrastructure inventory confirms
+Java 17, Node 22.23.2 and NDK 27.1.12297006. No authenticated service availability
+or cloud build was tested. Existing development profile and project ID preserved.
+Extended upload exclusions for nested native build outputs, local databases,
+logs, profiles, archives and sensitive development files, preserving module source,
+registration, public vectors and application assets. No application secret is
+required; remote development-environment variables remain uninspected.
+Updated proof instructions/TODO with separate account, archive, signing/upload/build,
+artifact and installation gates. Windows workarounds remain local and excluded.
+Local Windows build troubleshooting is stopped after app-level Gesture Handler
+codegen path failure; Reanimated had linked successfully across all four ABIs.
+Gate 1 validation: focused configuration tests 8/8; full regression suite 284/284
+passed using terminal-local Node 22.23.4. Lint initially flagged the new CommonJS
+test's undeclared Node __dirname global; declared that global and reran focused
+tests (8/8) and lint successfully. Git whitespace/conflict-marker checks passed;
+existing LF/CRLF notices remain. Preserved the original 12 uncommitted paths;
+Gate 1 adds eas.json, .easignore and tests/easCaptureproof.test.js to that scope
+(15 total, empty index). No archive was created or inspected at this gate.
+No application functionality, dependencies, native source, credentials or device
+data changed. No login, project initialization, signing, archive creation/upload,
+build, installation, paid enrollment, staging, commit or push. TalkBack and the
+eight deferred Expo patches remain separate. Account/environment verification
+requires explicit Gate 2 authorization.
+
+# FC-007B.2 — preview diagnostics — 2026-11-16
+
+Authorized memory-only instrumentation of the existing development capture preview,
+not a fix. Records bounded anonymous page/mode/action/layout/scroll/image events;
+allowlist discards URIs, content, raw error text and event objects. Ref-backed ring
+retains 200 events, on-demand panel summarizes per-page observations and last 40
+events. No per-event React updates, scroll reset, new key, transform or clipping
+change. Native visibility/Fabric internals remain unobservable through these APIs.
+New captures clear stale diagnostic metrics only; capture ordering/files/cleanup
+unchanged. Observer timing/layout effects are documented; stop if instrumentation
+masks the original visual defect. No persistence/analytics/diagnostic upload.
+Final focused diagnostic/capture tests 9/9, full suite 290/290 and lint passed;
+whitespace/conflict checks passed with existing LF/CRLF notices. Android A/B/C
+observations are pending owner interaction; no root cause or physical fix claimed.
+Portrait scanner workaround recorded as device-verified only; landscape privacy
+panel issue remains. Required future pinch/bounded pan/centred Fit/page-reset model
+documented, considering existing transitive gesture/animation versions; not implemented.
+No dependency/native/EAS/APK/device/household/OCR/trust-state changes, staging,
+commit or push. Next step is Metro diagnostic retest, not behavioural correction.
