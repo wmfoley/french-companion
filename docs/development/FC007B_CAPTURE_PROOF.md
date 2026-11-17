@@ -1,5 +1,702 @@
 # FC-007B capture technology proof
 
+## Gate 4B.2A.1: governed cleanup and trusted reference contract (2026-11-17)
+
+Implemented only the authorized pure cleanup extension; coordinator, SQLite and file
+operations remain unimplemented. This supersedes the earlier missing-core-transition
+prerequisite, not the remaining durability/service prerequisites.
+
+### Pure cleanup extension
+
+Manifest v1 accepts an optional cleanupIntents array; new empty manifests include it.
+Existing v1 manifests lacking it remain valid, unchanged on reading/serialization.
+No production database/schema migration is introduced. Cleanup intent fields are
+id, captureId, pending/complete phase, issuedAt/completedAt, referenceEpoch and snapshot.
+Snapshot is a validated isolated v1 submanifest of the draft, its pages, all current
+and retired assets, availability and prior completed image-deletion tombstones.
+It contains no bindings, private URI, image bytes or approval data. Completed cleanup
+retains this metadata/history and reserves its IDs against reuse; active capture/page/
+asset rows are removed. Metadata retention is intentional, not retention of image bytes.
+
+beginDraftCleanup(manifest, expectedRevision, captureId, evidence) checks exact 24-hour
+expiry, unsaved state, no historical/active binding, no protected asset or unresolved
+external/deletion operation, and complete reference facts. It advances revision once
+and records a pending snapshot. Validation requires the pending target to remain
+identical: save, retake, reorder, observation or new reference mutations cannot change
+that capture while cleanup is pending. Unrelated capture writes remain permitted.
+
+completeDraftCleanup(manifest, expectedRevision, intentId, evidence, absenceConfirmed)
+requires current revision/fresh evidence, non-regressing reference epoch, true absence
+confirmation and rechecks expiry/protections. It removes only that intent's active
+capture graph, preserves the receipt/history and advances revision once. No physical
+deletion occurs in either function. Persisted pending state round-trips for interrupted
+recovery. A completed same intent returns a defensive exact no-op, including revision;
+stale expected revisions/evidence still reject. Unknown intents do not silently succeed.
+
+Evidence is strictly shaped as {manifestRevision, referenceEpoch, referencesComplete,
+protectedAssetIds, pendingCaptureIds}. It represents coordinator facts, NOT trusted
+authorization merely because it passes pure validation. External pendingCaptureIds
+must exclude only this cleanup operation's own lease, never competing operations.
+Adapter must confirm every snapshot asset's physical absence; the boolean parameter
+cannot establish that in the pure core. Clock anomalies must be handled conservatively
+before supplying now; approved 24-hour duration is unchanged.
+
+### Proposed trusted coordinator boundary (DESIGN ONLY)
+
+Existing household SQLite persists one installation payload with assignment documents;
+SecureStore binds parent credentials. Assignment sources have textual id/reference/
+fidelity/originalText, not asset fields. Strict validators are unchanged. The proposed
+capture manifest owns binding records; source.reference strings are NOT hidden image
+links. No existing service establishes cross-repository complete image references.
+
+Authoritative reference union must include (a) all committed historical capture binding
+records, including intentionally deleted images, and (b) all reserved/pending conversion,
+replacement and retirement records in the trusted coordinator journal. Read the current
+household assignment/source IDs and content/write revisions through validated storage
+to reconcile these records. Missing assignment, malformed state or missing linkage
+watermarks are inconsistencies, not evidence that a binding can be forgotten.
+
+Proposed service interface:
+
+- prepareSourceRemoval(parentCapability, assetId) authorizes before/after reads,
+  validates both stores, reconciles pending journal work, and returns only affected
+  assignment IDs/titles, image/page identification and a short-lived opaque impact
+  handle. Do not expose full educational text, paths, household credentials or raw
+  source snapshots. If affected titles cannot be safely resolved, block confirmation.
+- confirmSourceRemoval(parentCapability, impactHandle, explicitConfirmation) rereads
+  and checks the handle's exact asset ID, repository revision, reference generation,
+  assignment revision vector and parent epoch. Any changed impact needs rediscovery
+  and renewed warning. Explicitly explain every affected assignment retains its study
+  material but loses access to the shared original. Handle is context, not authority.
+- Internal acquireReferenceFence(target, expectedGenerations) creates a durable
+  destructive-operation fence/lease. Only coordinator-private code can produce the
+  evidence supplied to the pure core; request bodies cannot supply completeness,
+  reference epochs, protection lists or absence confirmations. Handles should live
+  in service-owned state and never be accepted as arbitrary serialized evidence.
+- Internal finalize/recover(operationId) resumes only the exact already-issued durable
+  intent and checks current persisted fence/operation generation. It never invents a
+  fresh parent capability. Protected results require current session authorization.
+- Automatic draft cleanup uses the same private completeness/fence path without parent
+  authentication, and is limited to expired unbound unsaved drafts. It is not a route
+  to saved-image deletion or protected source browsing.
+
+All reference writers must be owned by this coordinator; repository write access must
+not be exported to UI/untrusted callers. A JS mutex alone is insufficient across
+restarts/connections. Durable reference generation, unique operation IDs, leases/fences
+and manifest CAS must serialize ALL writers. Prove writer coverage in adapter tests.
+The current household store has no global image-link epoch: the generation and validated
+per-assignment content/write revision vector are FUTURE coordinator metadata, not an
+existing household field or authorized assignment-schema change.
+
+Creation/update protocol: journal a link reservation with exact target asset/page/source
+and household expected revisions BEFORE any assignment conversion write; increment
+reference generation and protect asset. Reject pending deletion/cleanup fences.
+Commit/reconcile assignment and binding records under CAS; only then mark journal
+complete. Cross-store updates are recoverable, not atomic. If a store fails, retain
+reservation/protection and block destruction until reconciliation can prove actual
+state. Replacement appends a new binding; historical binding never silently retargets.
+Retirement marks coordinator lifecycle metadata, never erases the historical binding
+or weakens expiry checks. Actual historical purge requires separate policy authorization.
+
+Deletion fence is committed with exact current impact/intent after in-transaction parent
+epoch validation immediately before durable issuance (FC-005-06). Every link reservation
+checks that fence in the same durable coordinator serialization protocol; no new
+reference may appear between discovery/intent and unlink. A competing writer or changed
+revision invalidates impact, not the existing reference. Recovery reconciles known
+journal IDs against both stores, never guesses by array position or display title.
+Once a valid intent is issued, recovery may complete despite later parent revocation;
+post-loss protected results are suppressed and older work cannot alter a newer session.
+
+Locked/expired parent session: reject protected discovery/confirmation, clear context.
+Household storage unavailable/credential binding inconsistent/unknown version: no
+complete enumeration, no NEW destructive intent, no automatic draft cleanup. Already
+issued persisted intent may resume only if its durable fence and complete recorded
+impact remain verifiable; otherwise hold safely. Do not initialize/reset household
+storage or prompt PIN reset to bypass a failure. A stale handle/lease/generation rejects.
+Intentionally deleted sources keep historical assignment/source/asset binding and
+tombstone; availability changes do not modify assignment text, fidelity, review,
+approval or practice eligibility under either policy.
+
+Remaining 4B.2B prerequisites: durable coordinator journal/fence ownership and recovery
+proof; SQLite persistence and projection/version validation; hashing/capacity/private
+files and absence verification; operation lease revalidation; conservative wall-clock
+handling; source resolution invalidation; parent service integration; native/runtime/
+signing and backup verification. No adapter or coordinator implementation authorized.
+
+Verification: 23 core tests (six added) cover exact expiry, protected/history/saved
+rejection, stale evidence/revision, pending target freeze, recovery round trips,
+idempotency and tombstone/ID preservation. Full regression and lint results are recorded
+in the development log. Status: READY FOR GATE 4B.2A.1 REVIEW.
+
+## Gate 4B.2A: durable storage/recovery design (2026-11-17)
+
+Gate 4B.1 accepted; this gate changes documentation only. SQLite/file/service
+implementation (4B.2B), pure-core extensions, production UI and native builds remain
+unauthorized. RET-001/002, DEL-001/002, CAP-001, STO-001, AUTH-001 and INT-001 stand.
+
+### Installed infrastructure and constraints
+
+- Existing native household storage: src/services/localHousehold.js opens
+  french-companion-local-v1.db with expo-sqlite; storage/sqliteStore.js serializes
+  mutations and uses exclusive transactions. SecureStore credential binding and
+  fail-closed initialization are household-specific; reuse the serialization/error
+  discipline, not its installation table, credential or bootstrap routines.
+- Installed expo-sqlite declarations expose openDatabaseAsync,
+  withExclusiveTransactionAsync, transaction runAsync and execAsync. Bind parameters;
+  operate on the transaction handle, not the outer connection. IndexedDB household
+  storage is separate and supplies no Android file repository implementation.
+- Installed expo-file-system exposes File/Directory, document/cache paths, disk-space
+  information and file-handle readBytes. Capture Proof moves temporary images into
+  cache; that is not suitable production adoption/retention. Use COPY for adoption.
+  Paths.document is a proposed private durable root; verify actual path/backup rules
+  on Android. Do not infer fsync/atomic-rename guarantees from an API name.
+- Installed expo-crypto has byte-buffer digest(SHA256); digestStringAsync is not a
+  file hash. Existing @noble/hashes 2.4.0 can support incremental hashing of file
+  chunks. Prefer bounded chunk reads with that existing package after an isolated
+  compatibility test; do not allocate an unrestricted full-image buffer or add a
+  dependency. No filesystem API or streaming hash has been exercised in this gate.
+- app/parent.js locks on background/exit; householdService uses capability/epoch
+  checks before reads/mutations, in transaction callbacks before write issuance and
+  after asynchronous completion. Reuse those semantics through an explicitly approved
+  service integration; no private-helper access or parallel authentication system.
+- Assignment sources/strict validators remain unchanged. Existing household JSON and
+  assignment revisions are not capture metadata. Conversion/binding creation does
+  not exist yet. Development camera plugin and separate captureproof EAS profile
+  exist; default/production config is not a production capture implementation.
+
+### Proposed database and authoritative representation
+
+Separate french-companion-captures-v1.db. Enable foreign_keys on every connection,
+use exclusive write transactions, verify durability settings and fail closed on
+unknown user_version. Do not assume connection-local PRAGMAs apply everywhere.
+Suggested schema version 1; migrations are transactional, explicit and tested. No
+destructive reinitialization of malformed/newer databases. No changes to household DB.
+
+For a small initial repository, keep ONE canonical core manifest row authoritative;
+normalized tables are constrained transactional projections for discovery, never
+independently edited alternate truth. Load through core deserialize/validate, derive
+all projection changes from a valid next snapshot, update row with
+WHERE revision=expected and require changes=1. Roll back all projection/journal changes
+on CAS failure. Projection drift fails closed/rebuilds only from validated authority;
+never let incomplete projections establish complete references. Growth/rewrite cost is
+a known tradeoff; do not create a second per-capture revision unsupported by the core.
+
+| Table | Proposed columns/constraints/indexes |
+| --- | --- |
+| repository | singleton PK id=1, core_schema_version=1, positive revision, canonical_manifest TEXT; verify embedded revision/version match columns |
+| entities | id TEXT PK, kind capture/page/asset/binding/intent; enforces core-wide uniqueness; projection only |
+| captures | id PK/FK entities, status draft/saved CHECK, updated_at integer nonnegative; index(status,updated_at) |
+| pages | id PK/FK entities, capture_id FK captures RESTRICT, current_asset_id; deferred composite FK(current_asset_id,id) to assets(id,page_id) |
+| capture_order | capture_id FK captures, page_id FK pages UNIQUE, position integer 0..19; PK(capture_id,position); composite FK(page_id,capture_id) to pages(id,capture_id) |
+| assets | id PK/FK entities, page_id FK pages deferred, file_key UNIQUE=id, method/MIME checks, positive dimensions/bytes, sha256 lowercase64 CHECK; UNIQUE(id,page_id); UPDATE of metadata forbidden; index(page_id) |
+| bindings | id PK/FK entities, assignment_id, source_id, positive content_revision, asset_id FK assets RESTRICT; index(asset_id), index(assignment_id,source_id,content_revision); exact duplicate tuple rejected by adapter |
+| availability | asset_id PK/FK assets, availability and integrity CHECK enums; projection of core status; separate from approval |
+| deletion_intents | id PK/FK entities, asset_id UNIQUE FK assets, phase pending/complete, issued_at/completed_at; index(phase); completed rows are durable tombstones |
+| deletion_impact | intent_id FK deletion_intents, binding_id FK bindings; PK(intent_id,binding_id); preserve exact core impact snapshot |
+| observations | asset_id PK/FK assets, last_verified_at, last_missing_at, last_check_error fixed code, observation_generation; optional times are unknown, never fabricated verification |
+| file_operations | operation_id PK, kind adopt/delete/expire, phase, request_id UNIQUE, request_fingerprint, target IDs, reserved IDs, expected revision, relative staging/final keys, lease_generation, retry/error code, issued/completed times, recovery payload; index(phase,kind); persist payload schema version |
+| operation_protections | operation_id FK file_operations, capture/asset ID and reason; index(capture_id), index(asset_id); can reserve IDs not yet present in core |
+| reference_state | singleton PK, generation, complete flag, optional conversion reconciliation watermark; only trusted transaction coordinator writes it |
+| clock_state | singleton PK, last_wall_time, uncertain flag; scheduling evidence, not parent-session expiry |
+
+Add UNIQUE(id,capture_id) on pages for composite FK; create circular page/asset
+references DEFERRABLE INITIALLY DEFERRED. Core validation remains required for
+cross-table semantics SQL cannot express. Journal IDs have a separate namespace;
+reservations must also reject collisions with all core IDs/reserved entities. Do not
+store capabilities, PINs, confirmation secrets, image bytes or arbitrary raw exceptions
+in this DB. Persist minimal operation inputs needed to resume, not worksheet content.
+
+### Adoption: ordered durable sequence
+
+1. Receive a native-owned temporary URI inside a guarded capture operation. Validate
+   scheme/type, decodable positive oriented dimensions, actual MIME/bytes and allowed
+   capture method; caller-reported metadata alone is insufficient. Do not accept
+   arbitrary user-selected private filesystem paths. Reserve capacity for staging,
+   finalization and concurrent operations, with a safety margin established by tests.
+   Unknown free space blocks adoption safely; no fixed total quota or saved eviction.
+2. Exclusive SQLite transaction: load/validate manifest and target draft/page state,
+   enforce page20 limit including pending reservations, reserve capture/page/asset IDs
+   and idempotency request fingerprint, write adoption operation and protections.
+   No asset appears in core/availability yet. Retry same request returns same operation;
+   changed inputs under same request ID reject. Store only necessary temporary reference
+   for recovery in a private journal, never logs or route parameters.
+3. Copy to a unique repository staging key under document/capture-sources/staging.
+   Never move/delete original. Partial staging file is invisible to resolvers. Check
+   space again; catch ENOSPC/permission errors even after a successful preflight.
+4. Verify copied byte count and decode geometry; calculate SHA-256 over complete
+   staging bytes. Compare source/copy digests while source is available (or fail if
+   source changed during copy). Persist checked digest, metadata and phase. Use a
+   bounded reader, close handles on every exit. Interrupted hash restarts from bytes;
+   no assumption that transient hash state is durable.
+5. Finalize into immutable assets/<assetId> on the SAME private volume, no overwrite.
+   A move is an optimization, not a durability claim: if interrupted inspect staging
+   and final paths and hash candidates. Verify final bytes/hash before exposure.
+   An existing final path with mismatched digest is corruption/collision, never reuse.
+6. Exclusive transaction: reread latest authority/reservations, check operation identity,
+   target capture/page and revision. Use core addPage/retake with reserved identities
+   and verified metadata; CAS once, project tables and mark metadata_committed in the
+   same transaction. No incomplete/unknown hash or pending-copy asset becomes available.
+   On unrelated CAS conflict reread/revalidate; never blindly replay stale geometry,
+   page position or replacement target. If capture saved/expired/cancelled, keep the
+   operation blocked for reconciliation; do not mutate it into another workflow.
+7. Mark operation complete and release protection only after metadata/file reconciliation.
+   Source-temp cleanup is optional and allowed ONLY for an app-owned temp file whose
+   lifetime is owned by this operation after verified committed adoption. Never sweep
+   scanner-owned cache or delete a shared URI. App may retain temp until OS cleanup.
+
+At startup block resolutions of unresolved adoptions until verifying the final owned
+file. Complete a metadata-committed operation without another core mutation; if the
+file disappeared, record unexpected absence and surface recovery error. If the source
+temp vanished before successful copy, mark adoption failed (no core asset), retain safe
+recovery explanation and require recapture. Preserve known-good staged/final bytes for
+resumption; no silent saved-data deletion. A DB commit and file durability are not one
+atomic action; crash/power-loss behaviour needs physical evidence.
+
+### Shared deletion and authorization
+
+All source binding writers must use the trusted coordinator. Enumerate full manifest
+bindings plus normalized index and unresolved conversion operations; verify equality
+and reference_state watermark. Referenced assignment IDs/sources must resolve against
+current authoritative household reads; missing/unsupported documents or an incomplete
+cross-store conversion journal BLOCK deletion, not disappear from the warning.
+No bindings today is not evidence of complete future discovery unless service ownership
+ensures no other writer/link format exists. Do not interpret source.reference text as
+a hidden asset pointer. No actual binding conversion capability exists yet.
+
+Household/capture DBs cannot share an assumed atomic transaction. A later conversion
+coordinator must journal its link intent BEFORE an assignment can reference an asset,
+block destructive operations while unresolved, reconcile household revision and binding
+on restart, and restrict all writers. Until that protocol is approved/implemented,
+cross-store completeness cannot be asserted; linked deletion must fail closed.
+
+Authorized parent requests impact. Service checks session before/after reads, obtains
+sorted assignment IDs/display warnings and exact asset/repository/reference revisions.
+Warning explicitly says shared original disappears for ALL affected assignments while
+content remains. User explicitly confirms; route parameters or pure-core impact objects
+are not confirmation/capabilities. On confirmation reread complete references and recheck
+revision and epoch inside the synchronous transaction callback immediately before
+issuing durable deletion intent. Any change requires fresh impact/confirmation.
+
+Transaction runs core beginDeletion plus CAS/projections/file-operation journal and
+invalidates resolver tickets. Persisted pending intent prevents all new bindings and
+resolutions. After valid issuance, unlink exact immutable owned asset outside SQLite;
+later revocation does not cancel issued work. Finalize core completeDeletion only after
+confirmed absence, with current CAS; retain historical bindings and tombstone forever
+while references survive. Pure completion is not idempotent itself: adapter recognizes
+already-complete same operation and returns stored result without reapplying it.
+Permission/error uncertainty remains pending/retryable, not successful deletion.
+Post-write results are reauthorized/suppressed; older completions never affect a newer
+session. Replay persisted authorized intent without storing/reusing the old capability.
+
+Asset resolutions carry asset/repository/operation generation; host must clear source
+and reject late callbacks at deletion intent/replacement/lock. Existing decoded pixels
+need UI invalidation; file unlink alone is not secure wipe or a guarantee of immediate
+bitmap removal. No household assignment writes, approval changes, fidelity upgrade or
+practice-eligibility gate is introduced by image deletion or corruption.
+
+### Availability and integrity observations
+
+| Situation | Core / adapter outcome |
+| --- | --- |
+| Adoption pending/failed | Journal-only, no renderable core asset; report fixed operation status/error |
+| Final file hash verified | available + verified; observations.last_verified_at records actual check |
+| Available but no recent verification | available with prior verified/unknown integrity and timestamp; 'not recently verified' is derived, never a new approval claim |
+| Digest mismatch | available + corrupt if file exists; deny normal resolution, show recovery error, retain original metadata/digest |
+| Confirmed absent without deletion intent | unexpectedly_missing + unknown; retain bindings; do not use generic I/O error as absence evidence |
+| Intent pending | deny resolutions; 'deletion in progress', no false completion |
+| Confirmed intentional removal | intentionally_deleted with durable completed intent; no automatic resurrection |
+
+Hash at adoption/finalization, recovery of interrupted files, explicit restore and before
+future preparation/source verification consumption. Before an ordinary authorized open,
+check availability/existence/size and whether a startup/change observation requires hash;
+otherwise use last verification metadata, not a per-render hash. Size/time changes trigger
+hash but cannot prove unchanged content; no promise of tamper-proof source storage.
+Observation writes also use CAS; discard old check results for a replaced/deleted asset.
+Restore same asset only after exact digest match; recapture creates a new asset.
+
+### Draft expiry, clocks and cleanup gap
+
+Use core draftExpiry with injected wall clock, full reference knowledge, journal-derived
+pendingCaptureIds/protectedAssetIds. At exactly updatedAt+24h an interrupted unsaved
+draft becomes eligible, never automatically deletable merely because it is old. Saved
+status, any historical binding, active lease, unresolved operation or shared asset
+protection excludes it. Recheck under exclusive transaction before cleanup intent.
+
+Persist last observed wall clock. Use monotonic time for in-process leases, never as
+a cross-restart timestamp or parent-session substitute. Backward wall-clock jumps mark
+expiry uncertain and postpone cleanup. Large forward jumps also require re-observation
+before irreversible expiry; do not silently delete recoverable data based on an
+untrusted time change. Recommend hold until 24h of subsequent coherent observations
+or explicit user discard; exact anomaly threshold needs implementation review.
+
+CORE GAP: accepted core has no expire/remove-capture command, and its global revision
+advances on all mutations. Do not delete SQL projection rows alone or leave a removed
+file marked available. Proposed separately approved extension: expireDraft(expected
+revision, captureId, complete retention context) removes only the eligible unbound
+draft and owned assets after journaled cleanup has confirmed absence. Journal retains
+minimal expiry receipt outside the manifest. Lock draft against save/retake/binding
+from cleanup-intent issuance; crash replay completes same unlink/removal operation.
+Revalidate refs at each phase; if contradictory new protection appears, stop/quarantine,
+never delete more files. This small core extension is a prerequisite for automatic
+cleanup implementation, NOT authorized by the current design-only gate.
+
+### Failure-point / recovery matrix
+
+| Failure point | Required persistent evidence and recovery assertion |
+| --- | --- |
+| Before adoption journal commit | No owned file/core mutation; retry request normally |
+| After reservation, before copy | Resume same reserved IDs; missing source yields failed adoption, not available asset |
+| Mid-copy/ENOSPC | Partial staging inaccessible; retry/restart copy or retain failed operation; never expose partial bytes |
+| During hash/check | Restart bounded verification; mismatch blocks commit; preserve original temp |
+| After finalize, before manifest | Journal identifies exact orphan candidate; validate hash then CAS commit or retain blocked operation |
+| During manifest/projection CAS | SQLite all-or-nothing rollback; file remains protected; retry reread, no duplicate page/asset |
+| After manifest, before operation completion | Verify final file; finish journal without second core mutation |
+| During source-temp cleanup | Already committed image unaffected; only retry operation-owned temp cleanup |
+| After deletion intent, before unlink | Resolver denied; replay exact owned unlink; no renewed parent capability required |
+| Mid-unlink or permission failure | Keep pending/error; confirmed absence is success, unknown error is not |
+| After unlink, before tombstone commit | Replay absence check and core completion; content/approval unchanged |
+| Completion acknowledgement lost | Same request/fingerprint returns persisted terminal state after current result authorization |
+| Draft expiry interruption | Journal/protection prevents save/races; resume exact authorized expiry operation; core extension required |
+| Unexpected missing/corrupt file | Observation CAS, safe error; no auto-approval revocation, replacement or metadata fabrication |
+| Unjournaled owned orphan | Quarantine and reconcile against manifest, journal and reservations; never age-delete saved assets or unknown paths |
+| Unknown schema/DB corruption/projection mismatch | Fail closed, preserve data; no reset/reinitialize/assumed complete reference set |
+| Concurrent retake/reorder/binding/delete | Global CAS + operation leases; stale request rejects or recomputes after explicit revalidation, never deletes index-based target |
+
+### Tests, native prerequisites and remaining review items
+
+Keep existing 17 pure tests; add core-expiry tests only after approval. SQLite adapter
+tests must run real SQLite for FK/deferred constraints, rollback, migration/version,
+projection reconstruction, multiple connections, busy/CAS and durable request uniqueness;
+fake SQLite alone is insufficient. Inject IDs, clock and fault hooks around every
+journal commit/file action. File-adapter tests cover bounded reads, path confinement,
+wrong MIME/orientation, capacity/ENOSPC, partial copy, changed source, digest mismatch,
+file-handle closing and no overwrite. Fault tests restart a fresh repository instance
+at EVERY matrix boundary, including result acknowledgement loss and mixed operations.
+Check saved/shared/retired-retake protection and both household policy/approval methods.
+Service tests defer transactions across revocation/replacement and verify post-loss
+suppression without newer-session alteration; no production auth change assumed.
+
+Physical isolated Android acceptance must verify actual copy/hash memory/latency,
+20-page storage behaviour, interruption/restart, missing/corrupt/permission failures,
+draft clock anomaly hold, parent-only saved access, shared warning and deletion,
+stale bitmap invalidation, filesystem durability and backup exclusion. No emulator/
+Node result alone proves those. SDK58 declarations are installed, but main Dev APK's
+native module/ABI compatibility and signing identity remain unverified. Inspect approved
+artifact/runtime first; separately authorize any data-preserving build/install and
+backup config changes. No existing Dev/household-data access is needed for this gate.
+
+Review decisions/prerequisites: approve cleanup core extension; cross-store conversion
+reference journal and capability-check integration; free-space safety margin and clock
+anomaly threshold; bounded hashing implementation/runtime measurement; SQLite durability
+settings and backup exclusions; pending-operation retry/backoff/user-recovery UX. These
+are engineering choices awaiting implementation review, not changes to approved policy.
+Status: READY FOR GATE 4B.2A DESIGN REVIEW; no storage implementation or native build.
+
+## Gate 4A finalized policies / Gate 4B.1 pure core (2026-11-17)
+
+This section supersedes the tentative defaults and unresolved policy labels in the
+historical Gate 4A/3B entries. Owner approves RET-001, DEL-001, RET-002, CAP-001,
+STO-001, AUTH-001, DEL-002 and INT-001:
+
+- Saved originals persist until explicit authorized-parent deletion. Approval never
+  deletes images. Deletion preserves assignment content, source excerpts, fidelity,
+  review, approval and existing practice eligibility; retain source-unavailable data.
+- Interrupted unsaved sessions recover for 24 hours. Expiry only permits cleanup after
+  checking saved state, all references, pending operations and retention protections.
+- Maximum 20 pages; nonblocking warning at 10. No fixed total storage quota. Adapter
+  must supply available-space checks/warnings and handle insufficient storage safely.
+- Reopening, reviewing, correcting and deleting SAVED originals is Parent Area-only
+  with existing parent authorization. Student capture/unsaved preview remains separate.
+- Shared image deletion affects all bindings: identify affected assignments before
+  confirmation, explain content remains while original image becomes unavailable,
+  and block deletion when the impact set is not reliably complete.
+- Calculate SHA-256 at adoption, verify at selected lifecycle operations rather than
+  every render. Corruption, missing files and intentional deletion remain distinct.
+
+Implemented only: src/core/capture/captureRepositoryCore.js and focused unit tests.
+No persistence, filesystem/hashing, service authorization, screens or native adapters.
+No changes to assignment validators, household state or the accepted Capture Proof.
+
+### Implemented v1 data contract
+
+One repository manifest has schemaVersion=1, positive safe revision, and arrays of
+captures/pages/assets/bindings/availability/intents. Strict property sets, globally
+unique core record IDs and referential validation fail closed. Availability record
+IDs intentionally equal asset IDs. IDs follow existing lowercase hyphenated syntax.
+Caller identity/time functions are injected; inputs are validated and outputs copied.
+Every successful command advances the manifest revision once; stale expectedRevision
+throws stale_revision, failed commands leave input unchanged. This conservative
+repository-wide CAS also protects deletion impact against concurrent binding changes.
+It is separate from capture/preparation and assignment revisions; future preparation
+conversion must explicitly define its capture-revision mapping, not silently equate it.
+
+- Capture: id, draft/saved status, updatedAt in epoch milliseconds, ordered pageIds.
+  Draft expiry is measured from last capture mutation; pure calculation does not
+  delete anything. Saved cannot transition back to draft through the command API.
+- Page: id, captureId, currentAssetId. Reorder preserves IDs. Retake creates a new
+  immutable asset and updates the current page pointer; old assets/bindings remain.
+- Asset: id, pageId, camera/document_scanner method, positive source width/height and
+  bytes, image/jpeg|png|webp MIME, opaque fileKey equal to asset ID, lowercase SHA-256
+  hex. Adapter supplies already display-oriented dimensions; raw EXIF transformation
+  is outside the core. No absolute paths, worksheet text or assignment data stored.
+- Binding: id, assignmentId, sourceId, contentRevision, assetId. Page/capture resolve
+  through immutable asset/page identity. Historical bindings never retarget. Only
+  saved available/verified assets without deletion intent may gain new bindings.
+  Binding validates identity syntax, not actual assignment existence or authorization.
+- Availability: asset ID, available|unexpectedly_missing|intentionally_deleted status
+  and independent unknown|verified|corrupt integrity. Core observes supplied facts,
+  not files. Adoption records verified based on the adapter's asserted digest result,
+  not because parsing 64 hex characters proves file integrity.
+- Intent: id, assetId, pending/complete phase, issuedAt/completedAt, exact bindingIds.
+  Pending blocks new bindings/observations. Completion requires supplied confirmed
+  absence and retains tombstone, metadata and bindings; no assignment command exists.
+  Completed tombstones cannot be resurrected via observation. Complete/pending times
+  and exact referenced binding sets are validated on deserialization.
+
+### Public interfaces and transitions
+
+- emptyManifest(), validateManifest(), serialize()/deserialize(): canonical key order,
+  stable array/page order, defensive round trips, strict version and shape validation.
+- createRepositoryCore({newId, now}) returns createCapture, addPage, save, reorder,
+  retake, bind, observe, beginDeletion, completeDeletion. Each takes manifest and
+  expectedRevision before command-specific arguments. These are PURE commands,
+  not protected service endpoints and never substitute for capabilities/confirmation.
+- pageWarning(manifest,captureId): true at 10 through 20 pages; adding page 21 fails.
+- deletionImpact(manifest,assetId,referencesComplete): sorted binding/assignment IDs
+  and expected manifest revision. Caller must assert a reliably complete reference
+  snapshot. beginDeletion compares exact current impact; omitted/changed impact fails.
+  This flag is NOT authentication or proof that an untrusted producer found all refs.
+- draftExpiry(manifest,captureId,{now,referencesComplete,protectedAssetIds,
+  pendingCaptureIds}): returns eligible and exact asset IDs, including retired retakes.
+  At updatedAt+24h it permits cleanup only for draft, complete reference knowledge,
+  no bindings/protections/pending capture or deletion intents. No automatic deletion.
+- validateCapacity({availableBytes,requiredBytes,warning}): finite nonnegative safe
+  integers, explicit boolean warning; returns sufficient/warning, applies no quota.
+  Unknown free space fails validation; adapter must not interpret it as infinite.
+
+Save requires nonempty draft and available/verified current assets. Reorder/retake
+can preserve saved status; neither approves content nor changes historical bindings.
+Observation separates corrupt available assets from unexpectedly missing ones; only
+intent completion can mark intentionally_deleted. Retry of persisted intents belongs
+to adapter recovery, not repeated blind core completion. Invalid lifecycle transitions,
+unknown schema and malformed data produce fixed codes without private input values.
+
+### Gate 4B.2 requirements and evidence limits
+
+Still NOT implemented: SQLite persistence/CAS durability; private confined image
+adoption; real SHA-256 and selected-operation verification; capacity measurement;
+interrupted staging recovery; complete binding discovery across stored records;
+24-hour cleanup revalidation inside persistence boundaries; pending-operation leases;
+reference/retention enforcement; actual unlink and failure retries; parent confirmation
+and FC-005-06/epoch enforcement; resolved-image invalidation; Android backup exclusion.
+Core snapshots are mutable caller data, not signed receipts or tamper-proof records.
+Adapters must own state, reject caller-edited metadata and never let pure commands
+bypass service authorization. Updating immutable metadata in raw JSON is not an API.
+Assignment existence/source revision checks and atomic conversion/link reconciliation
+need explicit future implementation; no distributed SQLite/filesystem atomicity claimed.
+Main-Dev native/runtime/signing verification remains required before production hosting.
+
+Focused core tests cover creation, uniqueness, 10/20 limits, reorder, retake, CAS,
+transitions, exact expiry boundary/protections, shared impact, tombstones, corruption,
+serialization/malformed data, frozen inputs and capacity. Existing serialized Android
+worklet tests remain independent: the repository core is not a worklet/native module.
+No physical Android, storage durability or protected deletion acceptance is claimed.
+Gate 4B.2 requires separate authorization.
+
+## Gate 4A: proposed production capture contract, RET-001 / DEL-001 (2026-11-17)
+
+Design/documentation only. Baseline proof commit is
+83db4ddb8a9833f05ecdfb5dd6627f80c0eb0ef6. No durable repository, source-image
+deletion command, production host or assignment/image linkage is implemented.
+This section supersedes Gate 3B's unresolved saved-image retention/deletion policy.
+
+APPROVED RET-001: saved worksheet images remain until explicitly deleted by an
+authorized parent. Review, approval, preparation, storage pressure and age must not
+automatically delete them. No automatic expiry for saved assets is proposed.
+
+APPROVED DEL-001: explicit authorized parent image deletion preserves associated
+assignments and approved practice material. Require a clear confirmation warning
+and retain source-unavailable metadata. Image deletion alone must not revoke approval,
+change review progress or alter practice eligibility.
+
+### Logical records and identity
+
+These are proposed capture-repository records, not additions to schema-v1 assignment
+objects. Each persisted record has a supported schema version; revisions are positive
+safe integers, checked with CAS. IDs use existing lowercase hyphenated ID conventions.
+
+| Record | Minimum proposed fields/invariants |
+| --- | --- |
+| Capture | captureId, captureRevision, lifecycle draft/saved, ordered unique pageIds; capture identity survives page replacement and asset deletion |
+| Page | pageId, captureId, currentAssetId, immutable acquisition metadata; page is a logical slot independent of its order index |
+| Immutable asset | assetId, capture method camera/document_scanner, positive source width/height, display-orientation metadata, MIME type, byte count, repository-owned file key and lifecycle revision; image bytes/geometry/method never overwritten |
+| Source binding | bindingId, assignmentId, assignmentSourceId, originating assignment contentRevision, captureId, pageId, assetId; append-only historical target, never implicitly follows currentAssetId |
+| Availability/tombstone | assetId, availability available/intentionally_deleted/unexpectedly_missing, deletion phase if any, asset revision and explicit deletion-intent/completion timestamps; no credentials or raw capability stored |
+
+Page replacement creates a NEW assetId and updates the page's currentAssetId under
+capture CAS. Existing source bindings keep pointing to the old asset. Thus pageId
+is stable across a deliberate replacement; an appended page has a new pageId.
+This refines Gate 3B's tentative retake wording: never reuse an asset identity or
+overwrite source bytes, but a logical page slot need not change identity.
+
+Use relative private file keys confined to the repository root, resolved at runtime;
+no arbitrary caller paths, traversal, public gallery or network URLs. File existence
+and validated metadata are prerequisites for an available resolution, not proof of
+image readability, fidelity or OCR accuracy. Preserve capture-returned bytes after
+adoption; record display orientation explicitly so the viewer never guesses geometry.
+Store no image bytes in SecureStore or the household JSON envelope. SecureStore
+continues holding existing parent credential material only.
+
+### Compatibility and source references
+
+Existing assignment sources have id/reference/fidelity/originalText. Source IDs are
+assignment-local; originalText preserves extracted excerpts. Both assignment and
+document validators reject unknown fields. Do not append assetId or availability to
+those objects without a separately approved schema change. The proposed separate
+source-binding table uses (assignmentId, assignmentSourceId) with a revision snapshot;
+it preserves a historical link even after file deletion. Human-readable source
+reference strings are not file paths, authorization evidence or relational joins.
+
+Capture/binding revisions remain independent of assignment contentRevision and
+writeRevision. Deleting an image writes repository availability/tombstones only:
+assignment content, originalText, provenance, fidelity, field review, approval receipt
+and BOTH assignment revisions remain unchanged. FC-005 evidence remains usable.
+No new gate based solely on image availability may be inserted into strict or
+independent practice eligibility. Existing eligibility checks remain authoritative.
+
+FC-007A captures/preparations already have separate revision identities but only
+text-span evidence, not this durable image binding. Future conversion must explicitly
+establish bindings; existing assignments lacking bindings remain valid, with no
+fabricated missing-image status. An unbound assignment is not an unexpectedly missing
+asset. No migration or reconstruction is authorized in Gate 4A.
+
+### Storage, availability and lifecycle
+
+Repository owns private image files and manifests. Viewer receives a read-only resolved
+page and an asset/revision ticket, never deletion authority. Loading/loaded/load_error
+are viewer states, separate from durable source availability. A decoder failure or
+permission/I/O error does not establish deletion or physical absence.
+
+- Draft staging -> validated immutable files -> saved manifest. Only a committed
+  saved manifest makes a saved capture; never an assignment or approved study set.
+- Available -> unexpectedly_missing only on confirmed absence of an owned referenced
+  file. Preserve metadata and references; generic I/O uncertainty returns a distinct
+  operational error without falsely claiming absence.
+- Available or unexpectedly_missing -> deletion_pending via explicit authorized
+  parent confirmation and CAS -> intentionally_deleted after unlink is verified.
+  A missing file can be acknowledged as intentionally removed only through that
+  same explicit workflow; retain prior missing observation metadata if present.
+- Unexpectedly_missing -> available only when the SAME immutable asset is verified
+  restored. Recommend a stored digest for identity/integrity; re-photographing is a
+  new asset, not restoration. Digest policy remains proposed, not implemented.
+- Intentionally_deleted is a durable tombstone. A stray file with that asset key must
+  never automatically resurrect the source; reconciliation removes owned residual
+  bytes or reports cleanup failure. Re-import creates a new asset and explicit link.
+
+Deletion_pending is an internal operation phase, not a false claim that bytes are
+already absent. During it, refuse new resolutions and show 'Deletion in progress'.
+After verified removal show 'Original image deleted by parent'; for unexpected
+absence show 'Original image unavailable'. Neither message implies educational
+material is invalid. Source binding/tombstone metadata survives capture-list removal.
+
+### Authorized deletion and recoverability
+
+Proposed parent service boundary reuses existing capability/epoch-aware validation,
+inactivity expiry, background/route locking and FC-005-06 issuance semantics. This
+requires an explicitly reviewed integration interface, not giving the repository
+independent authority or calling a private authorization helper from arbitrary code.
+Student capture does not authorize saved-image deletion. Confirmation is mandatory;
+it is distinct from assignment approval and must not create approval evidence.
+
+Suggested warning: 'Delete this original worksheet image from this device? You will
+no longer be able to view it. The assignment and approved practice material will
+remain available.' Show the selected page and all known shared-source impacts inside
+authorized UI; use an explicit Delete image action and a cancel option. Bind confirmation
+to the exact assetId and expected asset/capture revision. Re-read/reconfirm on stale
+replacement or changed impact; never delete whatever asset happens to occupy an index.
+The confirmation token is service-issued operation context, not a reusable auth token
+or route parameter. Exact confirmation representation is a future interface decision.
+
+Recommended deletion sequence:
+
+1. Authorize, read current metadata, produce exact impact/confirmation context. On
+   confirmed request revalidate capability and revision in the synchronous metadata
+   transaction immediately before committing a deletion intent and invalidating
+   resolver tickets. Queue expiry/revocation/replacement rejects without intent.
+2. Once intent is validly issued, unlink that immutable owned asset idempotently;
+   this is the accepted deletion operation, not a fresh privileged background action.
+   Like FC-005-06, later revocation does not attempt to cancel already-issued work.
+   Suppress protected completion/results after authorization loss; never renew or lock
+   a newer session because an older completion arrives.
+3. Verify absence and commit intentionally_deleted tombstone. If unlink fails, retain
+   pending intent/error and deny new resolutions; do not claim success. Retry only
+   the same persisted authorized intent. On re-entry reread metadata/revisions.
+
+SQLite/file deletion is recoverable, not cross-store atomic. Crash after intent
+replays its exact owned unlink; crash after unlink finalizes tombstone on restart.
+An orphan file with deletion intent is not a reason to restore availability. Never
+sweep unknown directories. Files without saved references may be cleaned only under
+an approved draft/orphan policy; saved images must not be classified as orphans merely
+because assignment approval or conversion finished. Retain minimal tombstone/source
+bindings so deletion cannot erase provenance or point another assignment at a new image.
+
+Resolver tickets include assetId/revision and are invalidated on deletion intent,
+replacement and route/session exit where applicable. Host clears stale image source
+and ignores late load/gesture callbacks; later resolution rechecks availability.
+An already-decoded bitmap may remain briefly in native memory: unlink alone cannot
+prove immediate visual erasure, secure wiping or removal from OS backups. These need
+explicit lifecycle testing and accurate user-facing privacy claims. App-private file
+storage plus Android backup exclusion is proposed; it does not imply encryption or
+forensic erasure. No new backup/native configuration is authorized here.
+
+### Retake/replacement and remaining policy choices
+
+Unsaved retake may replace transient session content; committed asset bytes never
+change. Reorder changes only the ordered page list/capture revision. Replacing a saved
+page preserves its previous asset and bindings under RET-001 until parent deletion;
+do not silently retarget an approved assignment. Relinking/reinterpreting replacement
+content is a future explicit conversion/review operation. Any material educational
+correction still follows FC-005-07 and invalidates approval as established; image
+replacement alone neither approves new text nor rewrites approved text.
+
+| Unresolved choice | Alternatives and recommended default (not approved policy) |
+| --- | --- |
+| Draft retention | Session-only discard; short automatic expiry; recoverable drafts until explicit discard. Recommend recoverable drafts with explicit student discard of unlinked draft assets and visible resume/delete actions; no timed deletion until owner chooses a grace period. Saved assets always require parent deletion |
+| Draft to saved boundary | Automatic saving per page or explicit Save worksheet. Recommend one explicit Save after page review, with a clear saved state; avoids classifying abandoned photos as saved while permitting crash-recoverable drafts |
+| Page count | No cap; fixed cap; soft warning plus hard safety ceiling. Recommend trial soft warning at 5 pages and hard limit 10, based on weekly worksheet usability, subject to device/memory evidence rather than claimed capacity |
+| Storage budget | Unbounded; fixed quota; free-space-aware quota. Recommend warning at 250 MiB saved images, provisional 500 MiB app capture budget and 200 MiB free-space reserve, all adjustable after measured image sizes. Refuse new adoption safely if insufficient space; never auto-delete saved images |
+| Asset integrity | Metadata-only or digest. Recommend SHA-256 at adoption for restoration/identity verification; never treat a digest as source verification or upload it as telemetry |
+| Saved access | Student browsing or parent-only source browsing. Recommend student access to their capture workflow, with existing parent-protected assignment source details still protected; exact saved-library access needs approval |
+| Shared assets | Deleting all bytes affects every binding, versus per-assignment detach. Recommend explicit asset-level delete warning for every bound assignment; detach must not masquerade as physical deletion |
+| Tombstone lifetime | Until related records are explicitly deleted versus fixed expiry. Recommend retain while bindings exist, with minimal metadata; no worksheet pixels or extracted text duplicated in tombstones |
+
+No numerical limit, draft expiry, digest or access default above is an existing
+capability or approval. Avoid extra parent preparation steps: only saved-image deletion
+needs parent authentication/confirmation; normal capture and preview remain student-led.
+
+### Native readiness and future acceptance gate
+
+The proof APK validates its own Gesture Handler/Reanimated/Worklets runtime, not
+installed French Companion Dev. Before production integration: inspect an approved
+main-Dev artifact for module versions/registration, verify target configuration and
+signing identity, and authorize isolated runtime testing. A build is required if native
+camera/filesystem/gesture modules are missing or incompatible; that build, source
+upload and data-preserving installation need separate approval. Never uninstall Dev,
+clear household data, replace signing keys or assume the proof certificate is suitable.
+
+Future tests must cover both policy modes after source deletion (assignment unchanged,
+approval still valid when otherwise eligible), both approval methods, review/source
+text preservation, missing versus deleted states, shared binding impact, stale IDs/CAS,
+expired/queued/revoked and newer sessions, crash at each deletion phase, retry failures,
+restart, stale image callbacks, replacement/order and storage refusal without eviction.
+Actual bitmap clearing/backup configuration and main-Dev runtime require native/device
+evidence. These tests are specified, not implemented or run in Gate 4A.
+
+Status: READY FOR GATE 4A CONTRACT REVIEW. Only development documentation changes;
+RET-001/DEL-001 are approved, all other defaults require owner review. Production
+repository/service/schema/UI implementation, dependencies, builds and Git publication
+remain unauthorized. Earlier Gate 3B retention questions are historical where superseded.
+
 ## Gate 3B: proof consolidation and proposed durable capture contract (2026-11-17)
 
 Gate 2B, Gate 2C.2 and Gate 3A are owner accepted. This is a documentation-only

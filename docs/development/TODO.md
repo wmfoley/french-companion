@@ -1,5 +1,21 @@
 # Development Backlog — v0.1
 
+## FC-007B Gate 4B.2A — storage/recovery design
+
+- [x] Gate 4B.2A.1 adds pure beginDraftCleanup/completeDraftCleanup: exact expiry/revision/protection checks, frozen pending target, retained metadata/tombstone receipt and idempotent completion. Six new tests; core23/23, full366/366, lint passed. Trusted coordinator contract documented; completeness flags remain untrusted external facts until supplied by that future service.
+- [ ] Durable coordinator/SQLite/file implementation remains unauthorized. Earlier missing cleanup-transition prerequisite is resolved; reference-writer fencing, cross-store reconciliation, real absence/hash/capacity checks and native verification remain outstanding.
+
+- [x] Owner accepts Gate 4B.1. Gate 4B.2A documents separate capture SQLite authority/projections, operation journal, copy/hash/finalize adoption, complete shared-reference confirmation, recoverable deletion, observations, 24-hour retention checks and failure-point/test matrix. See current section in FC007B_CAPTURE_PROOF.md.
+- [ ] Gate 4B.2B NOT authorized. Review prerequisites: durable integration of the new cleanup transitions, trusted cross-store binding/conversion reconciliation, parent capability integration, clock anomaly/free-space margins, bounded file hashing and real SQLite/native durability/backup tests. No production storage/UI/build/dependency changes authorized.
+
+## FC-007B Gate 4A finalized / Gate 4B.1 pure repository core
+
+- RET-001 approved: saved images remain until explicit authorized-parent deletion; review/approval never triggers deletion.
+- DEL-001 approved: confirmed parent image deletion preserves assignment/practice material, source text/fidelity, approval and existing eligibility; retain source-unavailable metadata. Separate available/intentionally_deleted/unexpectedly_missing states proposed in capture repository, not assignment schema.
+- [x] Owner approves RET-002 (24-hour recoverable unsaved sessions with retention checks), CAP-001 (20 pages, warning at 10), STO-001 (no fixed quota; space checks/warnings), AUTH-001 (saved originals Parent Area-only), DEL-002 (complete shared impact confirmation) and INT-001 (SHA-256 adoption/selective integrity verification).
+- [x] Gate 4B.1 pure versioned core implemented: IDs/immutable assets, ordering/retakes, manifest CAS, historical bindings, separate availability/integrity, deletion intent/tombstone, impact/expiry/capacity validation and deterministic serialization. 17 new tests; combined focused/worklet 58/58, full360/360, lint passed. No adapters or production integration. See current contract in FC007B_CAPTURE_PROOF.md.
+- [ ] Gate 4B.2 requires separate authorization: durable SQLite/file adapters, hashing/capacity/native verification, crash recovery, retention rechecks, complete-reference discovery and protected service enforcement. No file operations, parent-auth changes, UI, schema migration, build or Git publication authorized in 4B.1.
+
 ## FC-007-UX2 — contextual student-to-parent handoff
 
 **Accepted by the owner on combined evidence:** physical Android **18 PASS, 0 FAIL, 1 NOT VERIFIED**; nonexistent, empty, missing and malformed ID cases each PASS in targeted unit/browser verification. Do not count these as additional device passes. TalkBack remains deferred/unverified. Final documentation and commit-readiness verification are authorized; staging, commit and push require separate approval.

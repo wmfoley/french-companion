@@ -1,5 +1,34 @@
 # Development Log
 
+## 2026-11-17 — FC-007B Gate 4B.2A.1 cleanup and completeness boundary
+
+- Extended pure core with governed beginDraftCleanup/completeDraftCleanup, optional v1 cleanupIntents compatibility, current-revision evidence, exact 24-hour eligibility/protection checks, pending target snapshot freeze and archived metadata/tombstone receipt. Completed replay is an exact defensive no-op. Physical absence and completeness are adapter facts, not established by the core; no file operation introduced.
+- Added six cleanup tests: boundary, saved/historical refs/protections/operations, stale revision/evidence, frozen target, interrupted serialized recovery, repeated completion, tombstone/identity retention and unrelated concurrent writes requiring fresh evidence. `node --test tests/captureRepositoryCore.test.js`:23/23. `npm.cmd test`:366/366 including existing worklet regressions. `npm.cmd run lint`:passed, terminal-local Node22.23.4.
+- Documented future coordinator-only evidence production, complete reference union, durable fences/generations, validated household revision vector, binding reservation/reconciliation, impact confirmation and locked/unavailable-store fail-closed rules. Historical deleted links survive. No coordinator, SQLite/filesystem, hashing, authentication or assignment-validator implementation changed.
+- Preserved prior uncommitted work; source/test plus three development docs remain the five-path scope. No production screens, native/dependency changes, build/install, stage/commit/push. READY FOR GATE 4B.2A.1 REVIEW; storage implementation still requires authorization.
+
+## 2026-11-17 — FC-007B Gate 4B.2A durable storage/recovery design
+
+- Read accepted core/tests, installed SQLite/file-system/crypto declarations, household store/capability flow, parent lifecycle and app variants. Installed APIs are static evidence only; no new runtime/native compatibility claim. Existing household installation/credential tables are not a capture repository.
+- Documented separate SQLite canonical-manifest authority plus constrained projections, operation/protection journal, version/CAS rules and private immutable files. Adoption copies, verifies/hashes and finalizes before availability; deletion commits authorized exact-impact intent before unlink and durable tombstone, without assignment writes.
+- Specified complete-reference ownership and fail-closed cross-store conversion reconciliation, startup recovery/idempotency, independent integrity/availability observations, capacity handling, draft clock anomalies and fault-injection/physical test matrix. Filesystem/SQLite atomicity and immediate native bitmap erasure are explicitly not claimed.
+- Identified required future core expiry/removal transition and trusted authorization/conversion coordination; neither is implemented or authorized here. Accepted core currently cannot remove expired drafts, so deleting projection rows/files alone is prohibited. Engineering margins/durability/native evidence remain implementation-review prerequisites.
+- Documentation-only update to proof notes, TODO and log. Existing uncommitted Gate 4B.1 source/tests preserved. No tests rerun for this design task; prior360/360, focused58/58 and lint evidence remains historical. No storage code, files/device/household operations, dependencies, builds, stage/commit/push. READY FOR GATE 4B.2A DESIGN REVIEW.
+
+## 2026-11-17 — FC-007B Gate 4A finalized / Gate 4B.1 pure repository core
+
+- Recorded approved RET-001/DEL-001 and RET-002/CAP-001/STO-001/AUTH-001/DEL-002/INT-001. Historical proposed policy defaults are superseded: unsaved recovery 24 hours, 20-page maximum/warning10, no fixed storage quota, parent-only saved-original access, complete shared deletion impact and SHA-256 adoption/selective checks.
+- Added pure captureRepositoryCore.js with strict v1 manifest validation, injected IDs/time, immutable asset transformations, stable pages/order, retakes/history, repository-wide CAS, source bindings, independent availability/integrity, exact deletion-impact snapshots, pending/completed intent tombstones, retention eligibility and capacity validation/canonical serialization. No files, storage, hashing, authorization, UI or native calls.
+- Added 17 deterministic core tests. `node --test tests/captureRepositoryCore.test.js tests/previewTransform.test.js tests/gestureRuntimeProof.test.js`: 58/58 passed including Android compilation/serialized worklet execution. `npm.cmd test`: 360/360 passed. `npm.cmd run lint`: passed. Used terminal-local Node22.23.4; no dependency/toolchain changes.
+- Existing assignment validators, household state/services, Capture Proof and installed Dev untouched. Digest/reference-completeness/absence facts remain trusted-adapter responsibilities, not established by this pure core. Gate 4B.2 persistence/file recovery, integrity/capacity measurement and parent-service boundaries remain unimplemented and separately authorized. No stage/commit/push/build/install. READY FOR GATE 4B.1 REVIEW.
+
+## 2026-11-17 — FC-007B Gate 4A capture-contract finalization proposal
+
+- Proof commit 83db4ddb8a9833f05ecdfb5dd6627f80c0eb0ef6 confirmed. RET-001/DEL-001 approved: retain saved images until explicit authorized parent deletion; preserve assignment, source excerpts/fidelity, approval, revisions and existing practice eligibility after image deletion.
+- Development-only contract proposal defines stable capture/page IDs, immutable asset IDs, separate historical assignment/source bindings, availability tombstones, CAS deletion intent, recovery and stale resolver/load invalidation. Saved-page replacement creates a new asset without retargeting historical bindings. Existing strict assignment validators mean image metadata belongs outside current assignment objects unless separately approved.
+- Confirmed existing household capability/epoch transaction semantics and independent revision model; proposed future deletion service must reuse them, not invent authority. No deletion capability or image repository exists today. Draft retention, quotas/page count, access and integrity defaults are recommendations awaiting approval.
+- Only development documentation changed. No implementation/dependency/native/device/household changes, build, stage, commit or push. Tests not rerun for this design-only task; future acceptance requirements recorded. READY FOR GATE 4A CONTRACT REVIEW.
+
 ## 2026-11-17 — FC-007B Gate 3B milestone and capture-contract design
 
 - Owner accepts Gate 3A; production integration remains unauthorized. Inspected the 25 uncommitted paths and documented per-path category, purpose, privacy consideration, dependency and inclusion recommendation. Proposed one coherent Capture Proof milestone, followed by separately authorized repository and production-host/viewer work. No staging or commit performed.
