@@ -1,5 +1,5 @@
 // INTERNAL capture-only foundation. Constructor identity provider is trusted composition,
-// never route/request data. No household receipt issuance or completion is supported.
+// never route/request data. Household receipt evidence is reread by trusted composition.
 const { sha256 } = require('@noble/hashes/sha2.js');
 const id = x => typeof x === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(x);
 const integer = x => Number.isSafeInteger(x) && x >= 0;
@@ -47,17 +47,24 @@ async function readCoordination(tx, manifest) {
     let op; try { op = JSON.parse(row.state); } catch { fail('invalid_coordination'); }
     exact(op, ['recordVersion', 'request', 'installationRef', 'fingerprint', 'reservationGeneration', 'ownerGeneration', 'owner', 'leaseUntil', 'phase', 'receiptState', 'createdAt', 'updatedAt', 'issuedAt', 'completedAt', 'errorCode']);
     request(op.request);
-    if (!scope || op.recordVersion !== 1 || row.id !== op.request.operationId || row.idempotency_key !== op.request.idempotencyKey ||
+    if (!scope || op.recordVersion !== (op.phase === 'complete' ? 2 : 1) || row.id !== op.request.operationId || row.idempotency_key !== op.request.idempotencyKey ||
       op.installationRef !== scope.installation_ref || op.fingerprint !== digest({ installationRef: op.installationRef, request: op.request }) ||
       !integer(op.reservationGeneration) || op.reservationGeneration !== op.request.expectedReferenceEpoch + 1 || op.reservationGeneration > scope.reference_epoch ||
       op.request.expectedManifestRevision > manifest.revision || !manifest.assets.some(a => a.id === op.request.assetId) ||
       !integer(op.ownerGeneration) || !(op.owner === null ? op.ownerGeneration === 0 && op.leaseUntil === 0 : id(op.owner) && op.ownerGeneration > 0) ||
-      !integer(op.leaseUntil) || !['reserved', 'blocked'].includes(op.phase) || op.receiptState !== 'unknown' ||
-      !integer(op.createdAt) || !integer(op.updatedAt) || op.updatedAt < op.createdAt || op.issuedAt !== null || op.completedAt !== null ||
-      (op.phase === 'reserved' ? op.errorCode !== null : !['receipt_unknown', 'storage_unavailable', 'reconciliation_required'].includes(op.errorCode)) || row.state !== encode(op)) fail('invalid_coordination');
+      !integer(op.leaseUntil) || !['reserved', 'blocked', 'complete'].includes(op.phase) ||
+      !integer(op.createdAt) || !integer(op.updatedAt) || op.updatedAt < op.createdAt ||
+      (op.phase === 'complete' ? op.request.kind !== 'bind' || op.receiptState !== 'applied' || !integer(op.issuedAt) || !integer(op.completedAt) || op.completedAt !== op.updatedAt || op.errorCode !== null :
+        op.receiptState !== 'unknown' || op.issuedAt !== null || op.completedAt !== null ||
+        (op.phase === 'reserved' ? op.errorCode !== null : !['receipt_unknown', 'storage_unavailable', 'reconciliation_required'].includes(op.errorCode))) || row.state !== encode(op)) fail('invalid_coordination');
+    if (op.phase === 'complete') {
+      const binding = manifest.bindings.find(b => b.id === op.request.bindingId);
+      if (!binding || binding.assetId !== op.request.assetId || binding.assignmentId !== op.request.assignmentId || binding.sourceId !== op.request.sourceId ||
+        binding.contentRevision !== op.request.householdRevisions[0].contentRevision || manifest.revision <= op.request.expectedManifestRevision) fail('invalid_coordination');
+    }
     return op;
   });
-  if (new Set(operations.map(o => o.reservationGeneration)).size !== operations.length || (scope && scope.reference_epoch !== operations.length)) fail('invalid_coordination');
+  if (new Set(operations.map(o => o.reservationGeneration)).size !== operations.length || (scope && scope.reference_epoch !== operations.length + operations.filter(o => o.phase === 'complete').length)) fail('invalid_coordination');
   const fences = await tx.getAllAsync('SELECT * FROM coordination_fences ORDER BY asset_id');
   for (const fence of fences) {
     const op = operations.find(o => o.request.operationId === fence.operation_id);
@@ -66,7 +73,7 @@ async function readCoordination(tx, manifest) {
   if (operations.some(o => o.request.kind === 'discover_delete' && !fences.some(f => f.operation_id === o.request.operationId))) fail('invalid_coordination');
   return { scope, operations, fences };
 }
-function createCaptureCoordination({ transaction, trustedIdentity, now }) {
+function createCaptureCoordination({ transaction, trustedIdentity, now, persistBinding, prepareBinding }) {
   async function identity() {
     if (typeof trustedIdentity !== 'function') fail('identity_unavailable');
     const result = await trustedIdentity(); exact(result, ['installationRef']);
@@ -88,6 +95,9 @@ function createCaptureCoordination({ transaction, trustedIdentity, now }) {
     if (changed.changes !== 1) fail('stale_owner');
   }
   return Object.freeze({
+    assertInstallation: installationRef => scoped(async (tx, state, current) => {
+      if (current.scope.installation_ref !== installationRef) fail('scope_mismatch'); return true;
+    }),
     bootstrap: async (...args) => {
       if (args.length) fail('invalid_coordination');
       return transaction(async (tx, state) => {
@@ -100,6 +110,16 @@ function createCaptureCoordination({ transaction, trustedIdentity, now }) {
       });
     },
     inspect: () => scoped(async (tx, state, current) => ({ referenceEpoch: current.scope.reference_epoch, operations: current.operations, fences: current.fences })),
+    validateIssuance: (operationId, ownerGeneration, owner) => scoped(async (tx, state, current) => {
+      const op = current.operations.find(o => o.request.operationId === operationId);
+      if (!op || op.phase === 'complete' || op.ownerGeneration !== ownerGeneration || op.owner !== owner || op.leaseUntil <= time()) fail('stale_owner');
+      if (op.request.expectedManifestRevision !== state.manifest.revision) fail('stale_revision');
+      if (op.reservationGeneration !== current.scope.reference_epoch) fail('stale_epoch');
+      if (current.fences.some(f => f.asset_id === op.request.assetId)) fail('asset_fenced');
+      if (op.request.kind !== 'bind') fail('invalid_coordination');
+      prepareBinding(state.manifest, op); // Pure dry run: saved/verified asset and globally unique binding ID.
+      return true;
+    }),
     reserve: async input => {
       request(input); const r = JSON.parse(encode(input));
       return scoped(async (tx, state, current) => {
@@ -131,6 +151,7 @@ function createCaptureCoordination({ transaction, trustedIdentity, now }) {
       if (!id(operationId) || !integer(expectedOwnerGeneration) || !id(owner)) fail('invalid_coordination');
       const old = current.operations.find(o => o.request.operationId === operationId);
       if (!old || old.ownerGeneration !== expectedOwnerGeneration) fail('stale_owner');
+      if (old.phase === 'complete') fail('invalid_coordination');
       const t = time(); if (t < old.updatedAt) fail('invalid_time');
       if (old.owner !== null && old.leaseUntil > t) fail('operation_busy');
       const op = { ...old, owner, ownerGeneration: old.ownerGeneration + 1, leaseUntil: t + 60000, updatedAt: t };
@@ -140,11 +161,47 @@ function createCaptureCoordination({ transaction, trustedIdentity, now }) {
     block: (operationId, ownerGeneration, owner, code) => scoped(async (tx, state, current) => {
       if (!['receipt_unknown', 'storage_unavailable', 'reconciliation_required'].includes(code)) fail('invalid_coordination');
       const old = current.operations.find(o => o.request.operationId === operationId); const t = time();
+      if (old?.phase === 'complete') fail('invalid_coordination');
       if (!old || old.owner !== owner || old.ownerGeneration !== ownerGeneration || old.leaseUntil <= t) fail('stale_owner');
       if (t < old.updatedAt) fail('invalid_time');
       const op = { ...old, phase: 'blocked', errorCode: code, updatedAt: t };
       await write(tx, op, old); return op;
     }),
+    // Both functions are privileged injected closures, never serialized receipt claims.
+    commitBinding: (operationId, ownerGeneration, owner, verifyReceipt, guard) => scoped(async (tx, state, current) => {
+      if (typeof verifyReceipt !== 'function' || typeof guard !== 'function') fail('invalid_coordination');
+      guard(); const old = current.operations.find(o => o.request.operationId === operationId);
+      if (!old || old.request.kind !== 'bind' || old.request.householdRevisions.length !== 1) fail('invalid_coordination');
+      const receipt = await verifyReceipt(JSON.parse(encode(old)));
+      const expected = receiptRequest(old);
+      if (!receipt || receipt.version !== 1 || receipt.outcome !== 'applied' || !integer(receipt.sequence) || !receipt.sequence ||
+        receipt.operation_id !== expected.operationId || receipt.idempotency_key !== expected.idempotencyKey || receipt.installation_ref !== old.installationRef ||
+        receipt.request_json !== encode(expected) || receipt.request_fingerprint !== digest(expected) ||
+        receipt.content_revision !== expected.expectedContentRevision || receipt.write_revision !== expected.expectedWriteRevision || !integer(receipt.committed_at)) fail('receipt_mismatch');
+      guard();
+      if (old.phase === 'complete') return { bindingId: old.request.bindingId, replayed: true };
+      const t = time();
+      if (old.owner !== owner || old.ownerGeneration !== ownerGeneration || old.leaseUntil <= t) fail('stale_owner');
+      if (t < old.updatedAt) fail('invalid_time');
+      if (state.manifest.revision !== old.request.expectedManifestRevision) fail('stale_revision');
+      if (current.scope.reference_epoch !== old.reservationGeneration) fail('stale_epoch');
+      if (current.fences.some(f => f.asset_id === old.request.assetId)) fail('asset_fenced');
+      // No await between final authorization/lease validation and first durable write.
+      guard();
+      const next = await persistBinding(tx, state, old);
+      const changed = await tx.runAsync('UPDATE scope_binding SET reference_epoch=reference_epoch+1 WHERE id=1 AND reference_epoch=?', old.reservationGeneration);
+      if (changed.changes !== 1) fail('stale_epoch');
+      const op = { ...old, recordVersion: 2, phase: 'complete', receiptState: 'applied', issuedAt: receipt.committed_at, completedAt: t, updatedAt: t, errorCode: null };
+      await write(tx, op, old); await readCoordination(tx, next);
+      return { bindingId: old.request.bindingId, replayed: false };
+    }),
   });
 }
-module.exports = { SCHEMA, readCoordination, createCaptureCoordination };
+function receiptRequest(op) {
+  const r = op.request; const revision = r.householdRevisions[0];
+  return { operationId: r.receiptOperationId, idempotencyKey: r.idempotencyKey, kind: 'create_binding', installationRef: op.installationRef,
+    assetId: r.assetId, bindingId: r.bindingId, assignmentId: r.assignmentId, sourceId: r.sourceId, originatingContentRevision: revision.contentRevision,
+    expectedContentRevision: revision.contentRevision, expectedWriteRevision: revision.writeRevision, referenceEpoch: r.expectedReferenceEpoch,
+    reservationGeneration: op.reservationGeneration, payloadDigest: null };
+}
+module.exports = { SCHEMA, readCoordination, createCaptureCoordination, receiptRequest };

@@ -1,5 +1,21 @@
 # Development Log
 
+## FC-007B Gate 4B.3B-2B.1 — final verification and local milestone authorization
+
+- Confirmed main at 359faef25725b4a37cc6b606d2a95ba246e778e9, empty index and exact seven approved paths. Reviewed the complete source/test/documentation milestone and existing household/capture interfaces. No source correction needed; trusted injection/private authorization, unchanged payload/revisions and independent database atomicity remain explicit.
+- Added three narrowly targeted tests: pre-reservation rollback/restart, committed household receipt with lost acknowledgement/restart, and durable receipt revision/identity conflict. Confirmed no duplicate receipt/binding, no invented completion, no target reassignment and no protective-fence release. Lease expiry permits recovery takeover only.
+- `node --test tests/captureBindingCoordinator.test.js`:29/29. Combined binding/capture/household command from prior entry:152/152. `npm.cmd test`:480/480. `npm.cmd run lint`:passed under Node22.23.4; expected experimental SQLite warning. Whitespace/conflict/secret-pattern/scope checks passed. Real isolated Node databases, not Android-native verification.
+- Authorized local commit message: `feat: add trusted capture binding coordination`. No push, native build/install, installed-data access, retirement, deletion, cleanup, production integration or next-gate work. Android-native evidence, full writer coverage and production composition remain outstanding.
+
+## FC-007B Gate 4B.3B-2B — isolated trusted binding and recovery
+
+- Confirmed clean main at accepted 359faef25725b4a37cc6b606d2a95ba246e778e9. Reviewed actual parent ticket/identity/receipt and capture/core interfaces against finalized 4B.3A.1. Reused household source code and existing approval/policy/fidelity semantics unchanged.
+- Added private captureBindingCoordinator factory, existing-source-only binding/recovery, exact protected identity/revision checks, lease-aware receipt issuance and trusted durable receipt reread. Extended only private capture operations for issuance validation and atomic immutable binding/journal/epoch/completion. Public metadata dispatch rejects internal bind; no production/UI composition.
+- Completion uses version2 operation records in existing capture v3 tables; legacy pending records remain version1. Canonical manifest stays v1. No household payload rewrite or assignment revision increment. Both databases remain independent; failures retain reservations/receipts for deterministic authorized recovery, with no fence release or invented completion.
+- Added26 real two-SQLite tests: each durable interruption/reopen boundary, idempotency, SQL/commit rollback, missing/conflicting evidence, stale revision/epoch/fence/owner/lease, pre/post-issuance revocation and unchanged payload. Extended fault loop correctly encountered five-minute expiry; test now reauthorizes before final recovery rather than changing session semantics.
+- `node --test tests/captureBindingCoordinator.test.js tests/captureCoordination.test.js tests/captureSqliteStore.test.js tests/captureImageAdoption.test.js tests/captureRepositoryCore.test.js tests/householdCoordination.test.js tests/nativeHousehold.test.js`:149/149. `npm.cmd test`:477/477. `npm.cmd run lint`:passed under Node22.23.4; expected experimental SQLite warning. Scope/whitespace/conflict/secret checks passed. No Android-native claim.
+- Seven-path scope: new service/test, capture coordinator/store and these three documents. No household/assignment source modification, retirement/deletion/cleanup, file access, production integration, dependency/native change, installed-data access, build/install or stage/commit/push. Remaining native evidence, full writer coverage and destructive/production workflows require separate authorization. READY FOR GATE 4B.3B-2B REVIEW.
+
 ## FC-007B Gate 4B.3B-2A — capture-side foundation
 
 - Verified clean main at 8a8b5fe03225275817996395d0ffdd30696f8a53 and preserved synchronization state. Reviewed approved 4B.3A.1 against canonical core, capture SQLite v2 migration/journal/CAS, immutable adoption checkpoints and household receipt foundation.

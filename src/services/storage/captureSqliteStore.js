@@ -13,7 +13,13 @@ function requestCheck(r) {
   if (![r.operationId, r.idempotencyKey].every(id) || !number(r.expectedRevision) || !r.expectedRevision ||
     ![r.captureId, r.assetId].every(x => x === null || id(x)) || !Array.isArray(r.args)) fail('invalid_request');
   if (r.type === 'metadata') {
-    if (r.captureId !== null || r.assetId !== null || !['createCapture', 'save', 'reorder', 'observe'].includes(r.command)) fail('invalid_request');
+    if (r.captureId !== null || r.assetId !== null || !['createCapture', 'save', 'reorder', 'observe', 'bind'].includes(r.command)) fail('invalid_request');
+    if (r.command === 'bind') {
+      if (r.args.length !== 2 || !id(r.args[0])) fail('invalid_request');
+      exact(r.args[1], ['assignmentId', 'sourceId', 'contentRevision', 'assetId']);
+      if (![r.args[1].assignmentId, r.args[1].sourceId, r.args[1].assetId].every(id) || !number(r.args[1].contentRevision) || !r.args[1].contentRevision) fail('invalid_request');
+      return;
+    }
     if (r.command === 'observe') {
       if (r.args.length !== 3 || !id(r.args[0]) || !['available', 'unexpectedly_missing'].includes(r.args[1]) || !['verified', 'unknown', 'corrupt'].includes(r.args[2])) fail('invalid_request');
       return;
@@ -77,6 +83,15 @@ function createCaptureSqliteStore({ openDatabase, newId, now, trustedInstallatio
     if (operations.some(o => o.type === 'adoption' && o.phase === 'completed' && !adoptions.some(a => a.id === o.id))) fail('invalid_adoption');
     const commits = operations.filter(o => o.committed_revision !== null).map(o => o.committed_revision).sort((a, b) => a - b);
     if (commits.length !== manifest.revision - 1 || commits.some((r, i) => r !== i + 2)) fail('journal_manifest_inconsistent');
+    for (const journal of operations.filter(o => o.request.command === 'bind')) {
+      const [bindingId, expected] = journal.request.args;
+      const binding = manifest.bindings.find(b => b.id === bindingId);
+      const row = await tx.getFirstAsync('SELECT state FROM coordination_operations WHERE id=?', journal.id);
+      let coordinated; try { coordinated = JSON.parse(row?.state); } catch { fail('invalid_coordination'); }
+      if (!binding || ['assetId', 'assignmentId', 'sourceId', 'contentRevision'].some(k => binding[k] !== expected[k]) ||
+        coordinated.phase !== 'complete' || coordinated.request.bindingId !== bindingId || coordinated.request.idempotencyKey !== journal.idempotency_key ||
+        coordinated.request.expectedManifestRevision !== journal.request.expectedRevision) fail('invalid_coordination');
+    }
     return { manifest, operations };
   }
   async function open() {
@@ -141,7 +156,21 @@ function createCaptureSqliteStore({ openDatabase, newId, now, trustedInstallatio
     await tx.runAsync('INSERT INTO operations(id,idempotency_key,type,request,phase,generation,created_at,updated_at,attempts,error_code,committed_revision) VALUES(?,?,?,?,?,1,?,?,0,NULL,?)',
       r.operationId, r.idempotencyKey, r.type, payload, phase, t, t, committedRevision);
   }
-  onCoordinationReady?.(Coordination.createCaptureCoordination({ transaction, trustedIdentity: trustedInstallationIdentity, now }));
+  function prepareBinding(manifest, op) {
+    const r = op.request; const revision = r.householdRevisions[0].contentRevision;
+    const binding = { assignmentId: r.assignmentId, sourceId: r.sourceId, contentRevision: revision, assetId: r.assetId };
+    const core = Core.createRepositoryCore({ now, newId: () => r.bindingId });
+    return { next: core.bind(manifest, r.expectedManifestRevision, binding), binding };
+  }
+  async function persistBinding(tx, state, op) {
+    const r = op.request; const { next, binding } = prepareBinding(state.manifest, op);
+    const changed = await tx.runAsync('UPDATE repository SET revision=?,manifest=? WHERE id=1 AND revision=?', next.revision, Core.serialize(next), r.expectedManifestRevision);
+    if (changed.changes !== 1) fail('stale_revision');
+    const journal = { operationId: r.operationId, idempotencyKey: r.idempotencyKey, expectedRevision: r.expectedManifestRevision, type: 'metadata', command: 'bind', args: [r.bindingId, binding], captureId: null, assetId: null };
+    await insert(tx, journal, canonicalRequest(journal), 'completed', next.revision);
+    return next;
+  }
+  onCoordinationReady?.(Coordination.createCaptureCoordination({ transaction, trustedIdentity: trustedInstallationIdentity, now, persistBinding, prepareBinding }));
   return {
     recordImageObservation: (operationId, expectedRevision, assetId, observation) => transaction(async (tx, s) => {
       exact(observation, ['status', 'integrity']);
@@ -229,7 +258,7 @@ function createCaptureSqliteStore({ openDatabase, newId, now, trustedInstallatio
     load: () => transaction(async (tx, s) => s.manifest),
     applyMetadata: async request => {
       requestCheck(request);
-      const r = clone(request); const payload = canonicalRequest(r); if (r.type !== 'metadata' || r.command === 'observe') fail('invalid_request');
+      const r = clone(request); const payload = canonicalRequest(r); if (r.type !== 'metadata' || ['observe', 'bind'].includes(r.command)) fail('invalid_request');
       return transaction(async (tx, s) => {
         const old = replay(s, r, payload); if (old) return old;
         const core = Core.createRepositoryCore({ now, newId: () => {

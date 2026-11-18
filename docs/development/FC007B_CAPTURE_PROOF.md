@@ -1,5 +1,127 @@
 # FC-007B capture technology proof
 
+## Gate 4B.3B-2B.1: final binding verification
+
+Reviewed the complete seven-path milestone against 4B.3A.1 and the existing private
+household/capture interfaces. No production correction was required. Added three
+focused tests for failure before reservation commit, household receipt COMMIT with
+lost acknowledgement and real close/reopen recovery, and durable receipt revision/
+identity corruption. Failed reservation leaves epoch/journal/receipt unchanged;
+lost receipt acknowledgement recovers the same receipt and binding; conflicting
+durable evidence blocks completion without retargeting or releasing protection.
+
+Final results: binding29/29, combined household/capture152/152, full480/480 and lint
+passed under Node22.23.4. Whitespace, conflict-marker, secret-pattern and exact
+seven-path scope checks passed. The internal callable guard and identity provider
+remain trusted composition, not independent authentication of arbitrary callbacks.
+No credentials or tickets are persisted. Existing payload bytes/revisions and
+approval/fidelity/policy remain unchanged; no distributed atomicity is claimed.
+Lease expiry permits ownership takeover only. Android-native verification, complete
+writer coverage and production composition remain outstanding. Owner authorization
+permits one local milestone commit only; push and further gates remain unauthorized.
+
+## Gate 4B.3B-2B: isolated trusted binding and cross-store recovery
+
+Implemented against accepted capture-side commit
+359faef25725b4a37cc6b606d2a95ba246e778e9. This section supersedes the earlier
+foundation's no-binding/no-completion limitation for the NEW private binding path only.
+No startup, UI, Add Assignment, Capture Proof, retirement, deletion or cleanup wiring.
+
+### Trusted composition and sequence
+
+New internal createCaptureBindingCoordinator receives the matching household service,
+private parent bridge, private household reference adapter, private capture coordinator,
+owner-ID source and clock. Constructor injection is privileged composition, NOT independent
+authentication of arbitrary injected callbacks. No route or request selects a household.
+The capture store remains independently bound through its trusted identity provider;
+assertInstallation checks that binding against the parent's verified native identity.
+The existing parent bridge and household receipt adapter are reused unchanged.
+No ticket, capability, verifier or PIN is persisted.
+
+bind(capability, request) and recover(capability, sameRequest) support only kind bind,
+one existing assignment/source and one exact household revision entry. No new assignments.
+Originating contentRevision is that entry's contentRevision. Intent fields are snapshotted
+before awaits and validated by the capture adapter; caller receipt or scope fields reject.
+Parent tickets preserve the existing session identity/generation/five-minute expiry.
+
+1. Protected identity and current assignment/source/revisions are checked.
+2. Capture reserve durably records exact request, expected manifest/epoch, immutable asset,
+   binding and household receipt IDs. Exact replay recovers the same reservation.
+3. Unfinished work claims its generation-checked recovery lease. The capture adapter checks
+   current manifest/epoch/fence/owner plus a pure core bind dry run (saved, verified asset,
+   unique identity) BEFORE new household issuance. No binding is persisted by that dry run.
+4. Household receipts are queried through the protected native adapter. If absent, issue
+   the exact receipt-only request through updateWithReferenceReceipt with null mutation.
+   Its final synchronous guard combines current parent authorization and lease validity.
+   The existing household transaction revalidates scope/source/document revisions. It does
+   not rewrite payload bytes or advance assignment revisions.
+5. Capture commit rereads the durable household receipt through a trusted closure and
+   rereads current document/source/revisions, then validates every receipt field against
+   the reservation: IDs, installation, canonical request/fingerprint, originating/expected
+   revisions, reservation epoch/generation, applied outcome, sequence and commit metadata.
+   No caller-provided serialized receipt is accepted as independent authority.
+6. Current owner/lease, original manifest revision, current reference epoch and target fence
+   are checked. The immutable core binding, manifest revision CAS, existing capture journal,
+   epoch advancement and completed coordination record commit in ONE capture transaction.
+   No await separates final authorization validation from issuing the first capture write.
+
+### Durable completion and compatibility
+
+SQLite database version remains3; no new table or column is needed. Pending recordVersion1
+states remain compatible. Completed binding operations use recordVersion2 with phase complete,
+receiptState applied, original receipt issuedAt and local completedAt. Readers reject unknown
+record versions/states; the preceding application revision fails closed on new completion
+records rather than silently ignoring them. No installed repository is opened or migrated.
+
+The existing operations journal now validates an INTERNAL metadata bind command recording
+stable binding ID and exact target. Public applyMetadata explicitly rejects this command.
+The general store gains no binding method. Manifest schema and core validators are unchanged.
+Journal continuity includes binding commits; journal/operation/binding links are checked on
+read. Completed records retain original reservation generation; referenceEpoch counts both
+reservation creation and binding completion. Replays do not increment either authority.
+Scope, operation and fence records are never removed or silently rebound.
+
+### Recovery boundaries
+
+The two databases are NOT atomic together. No lease/reservation is evidence that a household
+write occurred. A reservation with no receipt can issue one ONLY under fresh current parent
+authorization and valid owner/revisions. A committed receipt with no binding can complete the
+same historical binding after trusted receipt lookup and current-state validation. A committed
+binding with lost acknowledgement returns exact replay only after receipt reconciliation;
+a missing receipt blocks, never manufactures success. A lost owner acknowledgement may require
+waiting for its 60-second lease to expire. A new generation rejects stale worker completion.
+
+Before-issuance revoke/expiry produces no protected write. Validly issued household or capture
+transactions may finish after revocation, but protected results remain suppressed. Reauthorization
+is required for recovery; this gate does not implement unattended cross-store recovery. Changed
+document/manifest/epoch, mismatch, missing evidence, corruption or an unresolved fence rejects
+without rebasing, retargeting or releasing protection. Failure can leave a reserved/unknown
+operation (and an already-issued household receipt) awaiting recovery; it does not imply absence.
+Existing earlier reservations remain protected if a discovery fence appears. Checkpoint reads
+cannot create a distributed transaction: a concurrent change after receipt validation can leave
+an unresolved operation. No all-writer completeness or deletion-safety certificate is claimed.
+
+### Evidence and remaining work
+
+26 new tests use two independent temporary on-disk SQLite databases, fake SecureStore/credentials,
+explicit close/reopen and injected SQL/commit/acknowledgement interruptions. Covered authorized
+bind/replay, conflicts, every durable cross-store boundary, household-byte preservation, capture
+rollback, reauthorization/expiry, stale owner/lease, document/manifest/epoch changes, fences,
+unverified asset refusal, scope/store failures, malformed/missing receipt evidence and private
+metadata dispatch. One extended fault loop reached the real five-minute expiry; its fixture
+now explicitly unlocks before recovery, preserving production session semantics.
+
+Focused binding26 + capture83 + household40 =149/149. Full477/477, lint, whitespace,
+conflict-marker, secret-pattern and scope checks passed under Node22.23.4. Existing adoption,
+household, policy, exercises and worklet regressions are included. This is Node SQLite evidence,
+NOT Expo Android transaction/SecureStore/process-kill or native filesystem verification.
+
+Future work remains separately authorized: complete reference-writer coverage, retirement,
+destructive impact/confirmation and governed fence release, file deletion/cleanup, production
+CAP-002 saved scope and capture UI integration. No assignment content/schema/validator,
+approval/fidelity/policy, dependency/native config or household source code change. No installed
+data access, build/install, stage/commit/push. READY FOR GATE 4B.3B-2B REVIEW.
+
 ## Gate 4B.3B-2A: isolated capture-side coordination foundation
 
 Implemented after accepted local household foundation commit
