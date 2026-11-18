@@ -1,5 +1,33 @@
 # Development Log
 
+## FC-007B Gate 4B.3B-3A.3 — accepted design milestone verification
+
+- Owner accepted Gates 3A/3A.2 and the capture v4/event1/request2/operation3 contract. Verified immutable binding/manifest history, E->E+1 reservation and atomic event/completion/E+2, additive transactional migration, preserved legacy interpretation and exact durable recovery evidence. Household retire_binding receipt v1 remains unchanged.
+- Final documentation consistency, whitespace/conflict and exact three-path scope checks passed; source/tests/configuration unchanged and index initially empty. Complete writer coverage/deletion eligibility and Android-native verification remain outstanding. Runtime tests not rerun for documentation only.
+- Authorized one local documentation commit: `docs: finalize binding retirement and deletion safety design`. No runtime implementation, migration/data access, deletion/cleanup, dependency/native/build/install or push authorized or performed.
+
+## FC-007B Gate 4B.3B-3A.2 — durable retirement design resolution
+
+- Reconfirmed main at d033219ac671f29408dab5ffcbb271c7cd5e6431 and preserved the three pending documents. Inspected actual capture v3 tables, manifest revision journal, pending recordVersion1/completed bind recordVersion2, epoch/lease/CAS validators, trusted binding service and household v1 receipt/null-mutator dispatch plus existing tests.
+- Selected DESIGN ONLY: capture v4 with one append-only retirement_events table/eventVersion1 and exact canonical/indexed schema; new retirement requestVersion2 and recordVersion3 states/completion; household retire_binding receipt schema unchanged. Original immutable edge fingerprint/revision and event identity are durably reserved, no reinterpretation of legacy bind records.
+- Defined epoch E reservation->E+1->E+2 retirement with unchanged manifest revision, event+completion+epoch atomic in capture DB and no insertion in manifest-advancing operations journal. Specified exact replay/conflict/receipt validation, additive transactional migration, malformed/future-version refusal and preserved legacy pending retirement reservations blocked for explicit reconciliation.
+- These selections resolve 3A.1's four design blockers for review without implementing any API, SQL migration or test. Defined recovery across independent databases and retained unfenced-writer/deletion/native limitations. Source/tests remain unchanged. Documentation consistency/whitespace/conflict/exact three-path checks passed; runtime tests not rerun for docs only. No data access, dependency/native/build/install, stage/commit/push. READY FOR GATE 4B.3B-3A.2 REVIEW.
+
+## FC-007B Gate 4B.3B-3A.1 — compatibility verification blocked
+
+- Confirmed main at d033219ac671f29408dab5ffcbb271c7cd5e6431, exact three documentation paths and empty index. Inspected actual receipt exact-key/kind/null-mutator validation and capture bind-only dispatch/completion/epoch/journal invariants against retirement design.
+- Clarified exact retire_binding receipt mapping: original binding revision separate from current expected document revisions, verified installation and targets, retirement operation identity/epoch/generation, null payloadDigest/mutator. Existing household v1 schema supports this without payload rewrite; binding fingerprint/retirementId must stay in capture-side records rather than unsupported extra receipt fields.
+- BLOCKED: exact durable capture ledger/schema version/canonical format, completion record version and journal/epoch accounting are intentionally unresolved. Current manifest journal advances with manifest revisions; proposed sidecar-only retirement does not. Per owner instruction, did not select a durable default or commit an implementation-ready contract prematurely. Require explicit compatible format/migration/accounting decision, then reverify.
+- Documentation consistency/whitespace/conflict/scope checks completed. No runtime tests rerun for docs only; source/tests unchanged. Writer coverage remains unproven, lease expiry cannot release fences and no deletion eligibility claimed. No data access, implementation, migration, build/install, stage/commit/push.
+
+## FC-007B Gate 4B.3B-3A — retirement and deletion safety design
+
+- Confirmed clean main at accepted d033219ac671f29408dab5ffcbb271c7cd5e6431. Inspected actual household commands/native+web stores/receipt mutator, binding coordinator, capture CAS/journal/fences, core lifecycle transforms, image adoption/file adapter and development proof cache cleanup.
+- Documented writer authority/storage/transaction/reference-awareness matrix. Current bind is fenced, but existing household revision writers/generic target mutators do not form a deletion barrier. No source/assignment removal or saved-source unlink production service found; proof-only cache delete/move remains separate. No claim of complete writer coverage.
+- Proposed immutable retirement ledger with receipt-only household operation preserving original binding/content revision and current expected revision vector. Identified required future bind-only helper/kind dispatch, versioned ledger/epoch accounting and migration tests; no implementation. Historical bindings still count for impact and do not lose retention through retirement.
+- Defined deterministic authorized discovery with unknown counts, sorted fixed blocked reasons, active/historical/unresolved union, parent shared-image warning, opaque snapshot confirmation, restart-persistent fences, governed release and issued unlink/tombstone recovery. RET-001/DEL-001/DEL-002 and educational state stay unchanged. Added fault matrix, phased implementation and unresolved decisions.
+- Only FC007B_CAPTURE_PROOF.md, TODO.md and this log modified. Documentation consistency/whitespace/conflict/scope checks passed; source/tests/configuration unchanged. Runtime tests not rerun for documentation-only work; prior480/480 remains historical Node evidence, not Android verification. No data access/migration, code/API/dependency/native/UI change, build/install, stage/commit/push. READY FOR GATE 4B.3B-3A REVIEW.
+
 ## FC-007B Gate 4B.3B-2B.1 — final verification and local milestone authorization
 
 - Confirmed main at 359faef25725b4a37cc6b606d2a95ba246e778e9, empty index and exact seven approved paths. Reviewed the complete source/test/documentation milestone and existing household/capture interfaces. No source correction needed; trusted injection/private authorization, unchanged payload/revisions and independent database atomicity remain explicit.

@@ -1,5 +1,455 @@
 # FC-007B capture technology proof
 
+## Gate 4B.3B-3A.2: selected durable retirement contract (design only)
+
+This selected specification resolves the four compatibility questions recorded in 3A.1
+below and supersedes earlier tentative ledger/version/accounting wording. The owner accepted
+this design in Gate 3A.3; it is NOT implemented or permission to migrate any repository. Actual runtime
+remains capture database v3 with pending operation recordVersion1 and completed bind
+recordVersion2. Household receipt schema remains v1. No existing bytes or APIs change here.
+
+### 1. Canonical representation and version selection
+
+Select capture SQLite user_version=4 and ONE new append-only table retirement_events.
+Existing repository/operations/adoptions/scope_binding/coordination_operations/
+coordination_fences tables retain their columns and all existing rows. Manifest schema
+remains1. A retirement event is not a manifest edit or removal of its immutable binding.
+
+Canonical encoding C(x) is the existing captureCoordination.encode convention: recursively
+sort object keys, preserve array order, JSON.stringify with no formatting. Fingerprint H(x)
+is lowercase 64-hex SHA-256 of UTF-8 C(x), matching current digest semantics. Identity fields
+use current lowercase hyphenated ID syntax; installationRef uses the verified internal
+native identity, not a UI selector. Revisions/epochs/times are nonnegative safe integers;
+content/manifest revisions and generations are positive. Unknown/extra fields reject.
+
+Proposed table columns, in this order:
+
+| Column | Selected constraint / meaning |
+| --- | --- |
+| event_id | TEXT PRIMARY KEY, stable retirementEventId reserved in request |
+| event_version | INTEGER NOT NULL CHECK(event_version=1) |
+| binding_id | TEXT NOT NULL UNIQUE, at most one effective retirement per original binding |
+| operation_id | TEXT NOT NULL UNIQUE REFERENCES coordination_operations(id) |
+| idempotency_key | TEXT NOT NULL UNIQUE |
+| installation_ref | TEXT NOT NULL, exact scope_binding identity |
+| committed_reference_epoch | INTEGER NOT NULL UNIQUE CHECK(committed_reference_epoch>0) |
+| event_json | TEXT NOT NULL, exact C(event) defined below |
+
+Add nonunique index retirement_events_scope on installation_ref for scoped enumeration.
+SQLite constraints do not replace runtime exact-column, canonical JSON, FK/cross-record
+and scope checks; enforce associations even when foreign_keys is not enabled. No UPDATE
+or DELETE event command exists. Privileged adapter only INSERTs validated events. A newly
+adopted asset or later reattachment uses a new binding; retirement is irreversible in this
+contract and never changes the original edge. A repeated operation replays, while any new
+operation for an already-retired binding rejects already_retired (not silent success).
+
+Event JSON exact keys and values:
+
+- eventVersion:1; eventId:request.retirementEventId; kind:retire_binding;
+  operationId, idempotencyKey, installationRef, bindingId, assetId, assignmentId, sourceId.
+- originatingContentRevision: original binding.contentRevision; bindingFingerprint:H(original
+  binding object INCLUDING its id); requestFingerprint: new retirement operation fingerprint.
+- receiptOperationId, receiptSequence, receiptFingerprint: matching household row operation_id,
+  sequence and request_fingerprint; all must be read through the trusted household adapter.
+- expectedManifestRevision and committedManifestRevision: BOTH the reserved manifest revision.
+- expectedReferenceEpoch: pre-reservation epoch E; reservationGeneration:E+1;
+  committedReferenceEpoch:E+2. No implicit rebase to a later epoch.
+- expectedHouseholdRevisions and committedHouseholdRevisions: one-element sorted array of
+  {assignmentId,contentRevision,writeRevision}, equal for receipt-only retirement.
+- retiredAt: capture commit time, safe integer, not before that operation's createdAt/updatedAt.
+  Do not require comparison with household committed_at: distinct clocks may differ.
+
+Indexed columns must exactly match event JSON. Event must reference one exact immutable
+manifest binding and matching scope/operation/receipt IDs. No source text, paths, credential,
+ticket or educational payload is copied. The event's verified target is never inferred
+from descriptive source.reference text. Historical binding count always includes retired edges.
+
+### 2. Retirement request and completion journal
+
+Select NEW requestVersion:2 only for newly issued capture retirement requests. Exact request
+keys are current request keys (operationId, idempotencyKey, kind, assetId, assignmentId,
+sourceId, bindingId, expectedManifestRevision, expectedReferenceEpoch, householdRevisions,
+receiptOperationId), PLUS requestVersion, retirementEventId, originatingContentRevision,
+bindingFingerprint. kind is retire (capture vocabulary), requestVersion is2. The one household
+revision entry must target assignmentId; originating revision must equal the immutable edge
+and cannot exceed expected current content revision. bindingFingerprint must equal H(edge).
+retirementEventId is a trusted service-reserved stable ID carried across retries; operation,
+key, event and receipt identities must not collide with incompatible existing operations.
+Current requests without requestVersion remain their exact existing legacy format.
+
+Select recordVersion:3 for all NEW retirement operation states, explicitly dispatched by
+request.kind=retire AND request.requestVersion=2. Preserve the current operation envelope
+keys (recordVersion,request,installationRef,fingerprint,reservationGeneration,ownerGeneration,
+owner,leaseUntil,phase,receiptState,createdAt,updatedAt,issuedAt,completedAt,errorCode) PLUS
+one key completion. fingerprint=H({installationRef,request}), covering original edge identity,
+event ID, revisions and receipt identity. SQL id/key columns must match request exactly.
+
+Pending/reserved or blocked: completion=null, receiptState=unknown, issuedAt/completedAt=null.
+Use current owner generation/60-second lease/CAS rules and existing blocked codes
+receipt_unknown/storage_unavailable/reconciliation_required; no timeout terminal transition.
+Complete: phase=complete, receiptState=applied, issuedAt=household receipt committed_at,
+completedAt=updatedAt=event.retiredAt, errorCode=null. Keep original request and fingerprint.
+completion exact keys: eventId, eventFingerprint:H(event), receiptOperationId, receiptSequence,
+receiptFingerprint, expectedManifestRevision, committedManifestRevision,
+expectedReferenceEpoch, reservationGeneration, committedReferenceEpoch,
+expectedHouseholdRevisions, committedHouseholdRevisions. Values duplicate only the audit
+coordinates from the event, not the mutable binding graph; readers require exact agreement.
+
+coordination_operations is the retirement completion journal. Do NOT insert a retirement
+row into existing operations or assign it committed_revision: that journal is exclusively
+for commits advancing canonical manifest revision. This is an additive new versioned
+coordination record, not reinterpretation of completed create-binding records. Every
+completed v3 retirement operation must have exactly one event and every event exactly
+one complete v3 operation. Orphan, duplicate, partial or conflicting evidence fails closed.
+
+Household mapping stays EXACTLY the 3A.1 table below: kind retire_binding, original binding
+originating revision, current expected document revisions, retirement reservation's E/E+1,
+payloadDigest=null and mutate=null. Do not add eventId/bindingFingerprint/requestVersion
+to household request_json. No household schema or dispatch extension is needed at adapter
+level; a future capture request builder/validator must explicitly dispatch retirement.
+Receipt committed content/write revisions must equal the expected vector. Sequence,
+fingerprint, outcome, scope and all targets must match; receipt existence alone is not proof.
+
+### 3. Manifest, epoch and atomic transaction ordering
+
+Reservation transaction: current parent authorization/trusted scope, exact original binding
+and current assignment/source snapshot, E/manifest CAS and fence check; persist new v3
+operation with event ID/fingerprint and advance referenceEpoch E->E+1 atomically.
+Reservation does not retire anything. Reject a duplicate active retirement reservation
+for the binding, duplicate event/receipt IDs and incompatible operation/key reuse.
+
+After that commit, the household adapter issues the matching receipt-only transaction
+under freshly checked parent ticket and unexpired current recovery ownership. Preserve
+the original envelope bytes, educational state and document revisions. If validly issued,
+that household transaction may finish after revocation while suppressing protected results.
+
+Capture retirement transaction: reread both authorities through trusted internal interfaces;
+verify exact receipt, current source/vector, original immutable edge fingerprint, pending
+operation owner/generation/lease, scope, no target fence and manifest revision. Current
+referenceEpoch must STILL be E+1; otherwise block. After all awaits, assert current parent
+authorization and lease synchronously immediately before the first protected SQL write.
+SQL UPDATE scope_binding to E+2 predicates on id/installation/generation/current epoch
+AND EXISTS repository revision=expectedManifestRevision. Require changes=1. In SAME
+exclusive capture transaction INSERT event, CAS operation's exact previous state to complete,
+validate ledger/journal/epoch consistency, then COMMIT. Failure rolls back all three.
+No repository manifest/payload UPDATE and no operations journal insertion occurs.
+
+Exact replay: require current parent authority and trusted receipt/event reconciliation;
+return the stored event/completion unchanged, with no new time/epoch/sequence. A changed
+request on same ID/key, event mismatch, stale worker or conflicting retirement rejects.
+Never overwrite an event or bind to another source. New unrelated manifest/epoch changes
+cannot be silently rebased for unfinished retirement. Completed historical records may
+be enumerated after later corrections, but remain tied to their original audit vectors;
+replay does not rerun a parent operation or manufacture a new current-state receipt.
+
+Epoch validation in v4: referenceEpoch = coordination reservation count + completed legacy
+binding count + retirement event count. Completed retirement count must equal event count,
+not be counted twice. Reservation generations and each successful binding/retirement
+completion epoch must form unique occupied sequence positions through referenceEpoch;
+completed binding epoch is its reservationGeneration+1, retirement epoch is event's E+2.
+No epoch is decremented on error/lease expiry. Existing v3 data has zero retirement events,
+so its present accounting remains valid without rewriting old records. Existing manifest
+journal continuity remains byte-for-byte: its commits cover revisions2..manifest.revision.
+
+### 4. Additive migration and legacy compatibility
+
+Select migration v3->v4 in one exclusive capture SQLite transaction: validate existing v3
+manifest/journal/adoption/scope/operation/fence invariants FIRST; reject any preexisting
+retirement_events object at v3 as partial/ambiguous, not an invitation to repair. CREATE
+the empty table/index, set PRAGMA user_version=4, run v4 validation and commit. SQL failure
+or validation failure rolls back DDL/version together, leaving exact old bytes and v3.
+Earlier versions follow existing validated migrations through v3 in the same initialization
+transaction before v4. A valid v4 reopen validates, never recreates a missing object.
+Future versions >4 and malformed/partial state reject without reset/truncate/rebinding.
+
+Legacy completed bind recordVersion2 stays bind-only with the current journal/core edge
+interpretation; do NOT add completion fields, change its fingerprint or normalize JSON.
+Legacy pending/blocked bind/discovery recordVersion1 keeps exact request/owner/lease and
+recovery semantics. Legacy pending retire recordVersion1 (possible through foundation
+reserve vocabulary, despite no retirement service) is preserved and counts as an unresolved
+reservation, but is NOT automatically upgraded or completed by the new protocol. Reject
+legacy retirement continuation with legacy_retirement_reconciliation_required and preserve
+protection. New retirement against that binding also blocks pending explicit governed
+resolution of old request/household evidence. No assumed absent receipt, conversion to v3,
+ID replacement or auto-abort is allowed. This defined fail-closed compatibility behavior
+does not require choosing a data-repair policy in this gate.
+
+Completed new retirement records are readable only by v4-aware code; older code must reject
+user_version4 rather than partially interpret them. Downgrade is not supported. New code
+must test v3 completed binding, pending bind/discovery/legacy-retire and adoption recovery
+fixtures without altering bytes. No deployed/installed database is migrated by this design.
+
+### 5. Cross-store recovery contract and remaining boundaries
+
+| Durable situation | Selected recovery rule |
+| --- | --- |
+| New retirement reservation, receipt absent | Current parent reauthorization, exact scope/edge/source/vector/manifest/epoch and eligible lease owner before issuing; unavailable receipt store means unknown, not absent |
+| Household receipt committed, no capture event | Verify original typed receipt and reservation; claim expired lease with newer generation; atomically append same event/completion under unchanged expected CAS, or block on divergence |
+| Event/completion committed, acknowledgement lost | Reread matching event, v3 completion and household receipt; exact replay of same durable outcome, no new receipt/event/epoch |
+| Event without matching completed operation, or completion without event | Invalid atomicity/record evidence: fail closed, retain all rows and fences; no synthetic repair |
+| Wrong receipt kind/target/origin/revision/fingerprint/scope | receipt_conflict or receipt_mismatch, no capture completion; preserve reservation for explicit resolution |
+| Parent expired/revoked before issuance | No new protected write. Hold reservation and require new authorization; issued transaction may finish with result suppressed |
+| Old worker or unexpired foreign lease | Reject stale_owner/operation_busy; takeover only after expiry with generation CAS; expiry never declares failure, receipt absence or deletion permission |
+| Changed manifest/reference epoch/current source revisions | Block stale_revision/stale_epoch/stale_assignment. No implicit rebase or retarget; retain exact original audit intent |
+| Unknown/locked/malformed/mismatched repository | Block; no reset, ownership repair, invented receipt, event or completion |
+| Discovery fence before new retirement or during recovery | Refuse new retirement/commit and keep all protection; reconciliation/cancellation requires a separately authorized governed protocol |
+
+The two repositories are never one atomic transaction. Source snapshots and current
+authorization must be rechecked at issuance/commit boundaries as in binding creation;
+they do not establish all-writer fencing. Generic household/source writers remain explicitly
+unfenced in the 3A inventory. Active status is derived from original binding minus a verified
+committed event; retired edges remain in historical impact and never imply deletion eligibility.
+No retirement event changes assignment content/text/review/approval/fidelity/revisions,
+practice eligibility, source availability or files. No unlink, cleanup or fence release.
+
+All four durable compatibility choices are selected above; no essential source incompatibility
+remains for this DESIGN. Required later implementation extensions are explicit: v4 migration,
+versioned request/state validators, retirement ledger/epoch checks, dedicated retirement
+issuance/completion dispatch and tests. Actual API names and parent presentation can be
+reviewed later without changing this stored format. Legacy manual resolution, all-writer
+barriers, deletion and Android-native proof remain separate implementation/product gates,
+not authorization from this document. READY FOR GATE 4B.3B-3A.2 REVIEW.
+
+## Gate 4B.3B-3A.1: compatibility verification — BLOCKED pending durable format decision
+
+Historical finding: the four durable-format questions recorded here are resolved by the
+selected 3A.2 design above, subject to owner review. No implementation or commit is implied.
+
+Source review confirms the retirement principles below preserve the immutable binding,
+scope, educational state and historical deletion impact. Household schema version1
+already accepts the EXACT following typed request through the private adapter:
+
+| Field | Retirement mapping |
+| --- | --- |
+| operationId / idempotencyKey | Stable retirement receipt operation ID / exact retirement request key |
+| kind | retire_binding, never create_binding |
+| installationRef | Verified bound installation from trusted internal composition |
+| assetId / bindingId / assignmentId / sourceId | Exact original immutable binding targets |
+| originatingContentRevision | Original binding.contentRevision, not current document revision |
+| expectedContentRevision / expectedWriteRevision | Exact CURRENT existing document revisions (legacy effective writeRevision0 allowed); no null/null creation request |
+| referenceEpoch / reservationGeneration | Retirement reservation's expected reference epoch / persisted generation |
+| payloadDigest | null, with mutate=null |
+
+The household adapter already rejects non-null mutation for retire_binding, checks the
+existing document/source and revisions, and writes only its receipt for this null-mutator
+case. No household receipt schema or payload migration is required for this mapping.
+Adapter-issued version/outcome/sequence/fingerprint/revisions remain evidence; callers
+cannot supply them. Original binding fingerprint and retirementId belong to the proposed
+capture-side request/ledger, NOT extra household request fields (exact-key validation
+would reject them). Matching must validate both that receipt mapping and the capture
+request's original binding fingerprint. The adapter does not itself prove binding
+ownership or reference completeness; the future trusted coordinator must do so.
+
+Current capture receiptRequest hardcodes create_binding; validateIssuance/commitBinding
+and completed recordVersion2 validation are bind-only. Retirement requires explicit kind
+dispatch, a distinct immutable lifecycle ledger and corresponding read/replay validation.
+It cannot be implemented merely by passing retire to the existing binding coordinator.
+
+COMMIT READINESS BLOCKER: the proposal intentionally leaves the exact additive capture
+database schema version, ledger canonical encoding/identity fields, retirement completion
+record version and journal/reference-epoch accounting undecided. In particular, current
+manifest-journal continuity counts commits that advance manifest revision, whereas proposed
+receipt-only retirement retains that manifest unchanged; current referenceEpoch validation
+counts reservations plus completed bindings. These require an approved compatible durable
+format/migration and accounting specification before this design is implementation-ready.
+No version or representation is selected by this verification. Proposed later transaction
+atomicity is feasible within capture SQLite, but not yet a finalized persistence contract.
+
+Required owner/design decision: approve a concrete versioned retirement ledger/operation
+and migration specification, including uniqueness, canonical encoding, journal placement,
+epoch increments, legacy pending/completed binding compatibility and exact replay outcomes.
+Then reverify source consistency before the requested documentation milestone commit.
+All-writer enforcement and deletion eligibility remain separately blocked; generic household
+mutators/source and revision writers are explicitly unfenced in the inventory. Lease expiry
+never releases fences, retired edges remain discoverable, missing/conflicting evidence blocks
+deletion and cross-store atomicity is never assumed. No runtime/source/test change or commit.
+
+## Gate 4B.3B-3A: retirement and deletion safety design
+
+Design/documentation only, inspected against accepted d033219ac671f29408dab5ffcbb271c7cd5e6431.
+Everything proposed below is UNIMPLEMENTED. Binding creation/recovery remains the only
+cross-store lifecycle operation. No critical conflict with the approved architecture was
+found; several concrete adapter/schema and all-writer prerequisites remain before deletion.
+
+### Source-verified writer inventory
+
+Paths below are repository-relative. Transactions are per database, never cross-store.
+No production assignment import/removal, structural source edit or saved-image unlink
+service was found by source inspection. That absence is not a completeness certificate.
+
+| Actual path / functions | Authority, storage and transaction | Reference awareness / required future enforcement |
+| --- | --- | --- |
+| src/services/householdService.js: setup, verifyPin/unlock, setPracticePolicy | Existing setup/PIN/session rules; native installation envelope in SQLite exclusive transaction; web IndexedDB single-record transaction | No source links. Preserve credentials/policy semantics. Policy revision/session changes must invalidate protected discovery handles; passive recovery must not renew sessions |
+| householdService.js: submitAssignment | Student-callable new pending normalized document, unique assignment ID, existing schema/parent-claim restrictions; one household transaction | Creates source records, no structured image links. Currently UNFENCED by capture coordinator. Must remain unable to attach assets; future image-bearing conversion must use reservation/receipt protocol |
+| householdService.js: loadDevelopmentSample | Parent-authorized, development-only new document; existing sample retained; one household transaction | No image links and UNFENCED. Never claim fixture/proof ownership; include in writer inventory even though production filters it |
+| householdService.js: mutateParentAssignment, setFieldReview, markAllReviewed | Parent ticket/capability and write-revision checks; whole target update in household transaction | Changes review/write revision, may withdraw approval; preserves sources. Currently UNFENCED for discovery. Must participate in deletion snapshot freshness/writer barrier before deletion release/issuance |
+| householdService.js: saveParentCorrections; src/core/assignments/assignmentReview.js: applyParentCorrections/finish | Pure field correction inside protected household transaction; material edits increment content/write revision, selectively reset review/approval | Preserves original sources/IDs, no binding retarget. UNFENCED household writer: existing capture checkpoint comparisons are not an atomic deletion barrier |
+| householdService.js: approveReviewedAssignment, approveWithoutDetailedReview | Existing explicit parent approval rules; household transaction/write revision | No fidelity upgrade or reference change. UNFENCED; revision changes invalidate discovery confirmation; no new approval rule proposed |
+| src/services/storage/sqliteStore.js: update; src/services/storage/indexedDbStore.js: update | Privileged generic synchronous mutator; native exclusive transaction or IndexedDB readwrite transaction | General whole-envelope writes are not intrinsically reference-fenced. Keep private; future all-writer audit must prevent bypass. Web has no trusted native capture scope and must not expose these workflows |
+| src/services/storage/householdReferenceReceipts.js: updateWithReferenceReceipt | Internal guard/ready SecureStore binding, exact revisions, receipt and optional target mutation atomic in household DB | Current coordinator always passes null mutation. The privileged optional mutator can alter a validated target document, including structural sources: NOT all-writer fenced. Future uses need audited coordinator enforcement; receipt existence alone is not completeness |
+| src/services/captureBindingCoordinator.js: bind/recover | Internal trusted composition, current parent ticket, verified installation/source/revisions | Only implemented durable reference creator. Capture reservation, separate household receipt, then capture binding commit. Rechecks fences/epochs but cannot guarantee coverage of other household writers |
+| src/services/storage/captureCoordination.js: reserve/claim/block/validateIssuance/commitBinding | Private matching installation, capture SQLite exclusive transaction; manifest/epoch/owner checks | bind and retire/discovery reservation vocabulary exists; ONLY bind completion implemented. Discovery fence has no release API and persists independently of lease. Future retirement/deletion need versioned completion/fence states |
+| src/services/storage/captureSqliteStore.js: prepareBinding/persistBinding; applyMetadata | Private bind journal command rejected by public metadata dispatch; manifest/journal/epoch/completion atomic in capture DB | Historical binding append only. createCapture/save/reorder alter manifest revision/order, not reference graph; invalidate snapshots. No persistent retake dispatch today |
+| captureSqliteStore.js: reserveAdoption/claimAdoption/checkpointAdoption/releaseAdoption; src/services/captureImageAdoption.js: adopt/recover | Capture journal/lease transactions plus separate injected filesystem operations | Reserves stable page/asset IDs, checkpoints digest/finalization, atomically adds page; no assignment links. Future deletion/cleanup must enumerate pending adoption and staging ownership, including unknown outcomes |
+| captureSqliteStore.js: recordImageObservation; captureImageAdoption.js: verify | Observation persists manifest revision; no assignment change | Missing/corrupt/available distinction. Must invalidate deletion freshness/resolvers; no observation constitutes parent deletion authorization |
+| captureSqliteStore.js: registerOperation/listRecovery/recordRecovery | Capture-only journal generation/CAS; external deletion/cleanup kinds can be pending metadata | No file effect or completion API. These legacy unresolved journal rows MUST join discovery protection, not be mistaken for implemented deletion/cleanup |
+| src/services/storage/captureImageFiles.js: prepare/finalize/verify | Internal injected driver, private roots, exclusive copy/finalization; filesystem is outside SQLite transactions | Copies temporary bytes to staging/final immutable identity; never deletes source. finalizeExclusive may move staging under driver semantics. No production driver wired. Future unlink must use owned asset key/fence; staging must not be swept while unresolved |
+| src/core/capture/captureRepositoryCore.js: retake/bind/beginDeletion/completeDeletion/beginDraftCleanup/completeDraftCleanup | Pure immutable transformations only; caller-supplied facts, no auth/I/O | Retake preserves old assets; delete retains binding/intents/availability tombstones; draft completion removes only eligible draft snapshot data and retains history. Not trusted services. Boolean completeness/absence claims are NOT security evidence; no persistence dispatch for these destructive transitions today |
+| src/components/CaptureProof.js: run(kind), including clear/scanner branches; src/core/capture/captureProof.js: cleanupOwned | Development proof route/operation guards; own cache directory, no durable capture repository | Moves scanner output into proof cache; explicitly deletes proof-owned temporary images, handles failed/stale capture cleanup. No adopted/saved asset ownership. Must remain separate; never broaden root to repository assets |
+| src/services/localHousehold.js / localHousehold.web.js; parent review controller / app/parent.js | Existing private storage composition and protected UI commands | No capture coordinator is instantiated in production composition. UI calls existing services; no extra image writer found. Future wiring requires source audit and native acceptance |
+
+Pure normalization/validators, preparation contracts, practice runs and preview components
+do not persist source links. Future imports, assignment/source removal, replacement and
+conversion MUST be registered writers before exposure; no assumption that generic SQL or
+source.reference text is an authorized alternate link. Developer tests directly mutate only
+isolated fixture databases; they are not production writers or deletion evidence.
+
+### Proposed governed retirement
+
+Recommended lifecycle: active historical binding -> retirement_reserved -> household_receipted
+-> retired. Failure/unknown evidence retains protective reservation; blocked is a reason,
+not removal of an edge. Active means a committed binding with NO committed retirement
+ledger row. Retired bindings still count as historical impact and retain RET-001 protection.
+Retirement NEVER authorizes image deletion, even when active count becomes zero.
+
+Future request must bind operation/idempotency IDs, exact binding/asset/assignment/source IDs,
+original binding contentRevision and canonical binding fingerprint, current expected document
+revision vector, manifest revision, reference epoch and scope generation. Scope comes only
+from verified internal composition. Parent session/epoch is memory-only and rechecked at
+each unissued protected transaction. Reject missing/mismatched original edge, new source
+identity, unknown document, stale owner or conflicting replay; no caller-selected household.
+
+Sequence: validate current source and original immutable edge; reserve retirement with epoch
+CAS/fence checks; issue receipt-only kind retire_binding through existing household adapter;
+then reread exact durable receipt and current revisions and atomically append ONE immutable
+retirement ledger row plus completed operation/epoch in capture DB. Preserve core binding,
+page, asset, assignment payload bytes/revisions, approval, review and fidelity. No rebind.
+Retirement row proposal: version, retirementId, bindingId UNIQUE, assetId, originating binding
+fingerprint, operationId UNIQUE, receiptOperationId, receipt fingerprint/sequence, reservation
+generation, retiredAt and committed reference epoch. It is lifecycle evidence, not a copied
+mutable binding graph. Exact repeated request returns the same row; a new operation trying
+to retire the same binding reports already_retired/conflict rather than creating another row.
+
+Current receiptRequest helper is bind-only and derives originating revision from current
+expectations: future retirement MUST instead use the original binding revision while checking
+current document revisions separately. Current validateIssuance/commitBinding/read validation
+are bind-only. Extend via explicit kind dispatch, versioned operation validation and additive
+retirement ledger migration under a later gate; do not overload bind completion. Retirement
+need not change canonical manifest revision because core binding is retained; manifest CAS
+must still predicate the epoch/ledger write. No current journal-continuity invariant may be
+weakened: retirement journal/epoch accounting needs explicit tests and schema version review.
+
+If a source is already missing or household state has materially changed, hold for explicit
+resolution; do not fabricate a receipt, retire automatically or retarget to a similar source.
+A discovery fence blocks new retirement reservations as well as new bindings. Preexisting
+reservations must reconcile before discovery can claim completeness. Historical references
+are never discarded to make a delete appear safe.
+
+### Proposed deletion, completeness and confirmation
+
+State machine: none -> discovery -> deletion_issued -> deleted. A blocked reason overlays
+the last protective state. Leases govern worker takeover only, never fence lifetime.
+Existing code implements discovery reservations/fences only; issued/deleted persistence,
+parent impact/confirmation, worker and release are NOT implemented.
+
+Discovery under current parent authority acquires/replays a durable asset fence, then
+reconciles the union of canonical bindings (active AND retired), retirement ledger,
+capture coordinator reservations/completions, legacy capture operations/adoption records,
+household receipts and current validated assignment/source ownership. Include stale/failed
+operations until an explicit durable resolution proves their effects. Enumerate both stores;
+never infer empty references from absent rows, a failed query or lease timeout.
+
+Reference completeness requires an audited closed writer protocol plus a consistent
+manifest/epoch, household receipt watermark, document revision vector and fence generation.
+Current plain household mutations do not acquire capture fences. Before issuing deletion,
+future coordination MUST enforce writer reservations/barriers at relevant household issuance
+and across all image-link writers, reconcile in-flight operations and prevent new links.
+Repeated independent reads and revision comparisons alone do not close this race. Existing
+generic mutators must remain private and audited. Until coverage is proved with multi-writer
+tests, deletion eligibility is false with writer_coverage_unverified, even if counts are zero.
+
+Proposed internal deterministic result (NOT a caller-supplied certificate): version, assetId,
+activeReferenceCount, historicalBindingCount (all retained committed bindings), retiredCount,
+affectedAssignmentIds (sorted unique union, active/historical/unresolved), unresolvedCoordinationCount
+(distinct operation identities across stores, not double-counted receipts), deletionEligible,
+blockedReasons (sorted fixed codes), manifestRevision, referenceEpoch, receiptWatermark and
+fenceGeneration. Reasons include writer_coverage_unverified, unresolved_operations, stale_snapshot,
+missing_assignment_or_source, scope_mismatch, receipt_conflict, unsupported_schema, store_unavailable,
+integrity_unknown and fence_conflict. Counts must be null/unknown, not zero, if enumeration
+is incomplete. deleted and unexpectedly_missing remain distinct availability states.
+
+Parent-facing projection is protected and minimal: asset/page label, affected assignment
+titles/identities needed for the shared warning, counts/unknown indicators and readable blocked
+reasons. No installation ID, paths, source text or credentials. Internal revision/receipt tokens
+stay private. Affected assignments include retired historical links; never label unknown impact
+complete. DEL-002 warning states deletion affects ALL these assignments' source image, while
+their study content and approval remain. One explicit confirmation per exact impact snapshot;
+generated-question inspection is not required and no new approval workflow is introduced.
+
+Confirmation is an opaque service-owned memory handle tied to parent session epoch, scope,
+asset, exact sorted edge/reservation set, manifest/epoch, household revisions/watermark and
+fence generation. Revalidate authorization, all evidence and writer barrier inside the issuance
+protocol; stale or restarted handles require fresh discovery and confirmation. Atomically persist
+deletion_issued fence, core deletion intent and operation/audit IDs in capture DB after final
+synchronous authorization check. No cross-store atomicity claim. Parent cancellation may release
+only unissued discovery after reconciliation PROVES no issued intent/unresolved dependence;
+until that future protocol exists there is no release API. No timeout-only release.
+
+An eventual separately authorized file worker uses only repository-owned immutable asset keys
+and issued operation/generation. Confirm actual absence with a trusted driver; permission error
+is not absence. Unlink failure retains issued fence and retry metadata. On verified absence,
+commit core deletion completion/tombstone and deleted fence atomically. Retain asset/page/binding/
+retirement/receipt identities and unavailable source links. Invalidate resolver generations and
+decoded protected UI on lock/delete; unlink cannot erase already rendered pixels by itself.
+Unexpected missing file without issued intent is unexpectedly_missing, NOT intentional deletion.
+
+RET-001 and DEL-001 remain unchanged: saved originals have no automatic expiry; image deletion
+never edits educational/source text, review, approval, source fidelity, assignment revisions,
+practice policy/eligibility or student progress. Current sessions store outcomes only in memory;
+future FC-008 history is separate. No retirement or availability-only event is a correction.
+Draft cleanup retains the approved 24-hour window and may affect only unsaved, unreferenced,
+operation-free assets after trusted completeness/absence checks; it is a separate future gate.
+
+### Recovery and fault matrix (proposed)
+
+| Fault / observation | Required disposition |
+| --- | --- |
+| Retirement reservation, receipt absent | Fresh authorization and exact current revisions before any issuance; absence from an unavailable store is unknown. Keep reservation |
+| Retirement receipt committed, capture retirement absent | Verify exact typed receipt and original edge/current source; append same ledger ID under CAS, or block on divergence; no payload replay |
+| Retirement complete, acknowledgement lost | Reread both authorities and replay same immutable outcome; no second receipt/ledger/epoch increment |
+| Parent expiry/revoke before issuance | No new parent-only durable write; invalidate confirmation, retain protective metadata until governed reconciliation |
+| Revocation after valid issuance | Finish that transaction/issued deletion work atomically where possible; suppress protected results. Reauthorize for further unissued actions |
+| Stale manifest/document/reference epoch | Block and rediscover; no silent rebase or source reassignment; preserve historical edge/retirement |
+| New reference during discovery | Fence must reject reservation; earlier in-flight writer joins reconciliation. Bypass/unknown writer invalidates coverage and blocks issuance |
+| Restart during deletion issuance | Read durable intent AND fence/journal: no issued transaction means fresh confirmation; issued exact state resumes without inventing parent capability; inconsistent partial state blocks |
+| Filesystem unlink failure/access uncertainty | Retain deletion_issued fence, retry same immutable operation with generation checks; never report deleted |
+| Unlink succeeded, completion commit lost | Verify actual absence again and complete same tombstone; no duplicate unlink target or educational mutation |
+| File missing with durable references, no issued intent | Mark unexpectedly_missing through existing observation semantics; preserve references/approval; no fake deletion receipt. Parent resolution may be needed |
+| Missing/conflicting receipt or malformed store | Unknown/blocked, no destructive issuance; do not reconstruct evidence from capture success or erase inconsistent rows |
+| Household/capture unavailable or scope mismatch | No completeness certificate, no fresh issue/release. Preserve fences/operations; no PIN reset/rebinding workaround |
+| Stale recovery worker/expired lease | Reject stale generation; allow eligible ownership takeover only. Fence and historical records persist |
+
+### Later gates and unresolved decisions
+
+1. Separately authorize retirement ledger/schema and explicit kind dispatch; test receipt-only
+   retirement, original/current revision separation, every cross-store crash point and unchanged
+   educational state. No physical file effects.
+2. Separately authorize all-writer audit/enforcement and discovery-only impact API. Test multi-
+   connection races, generic writer bypass refusal, unknown counts, fences across restart and
+   receipt/vector freshness. Deletion remains disabled until coverage is demonstrated.
+3. Separately authorize protected impact/confirmation and durable issuance WITHOUT unlink;
+   test stale handles, session expiry, barriers, rollback and governed discovery cancellation.
+4. Separately authorize private driver unlink/recovery/tombstones and native isolated Android
+   process-kill/storage/permissions tests; only then consider production UI/promotion.
+
+Outstanding owner/design approvals: exact retirement ledger/schema version and result codes;
+whether active references are grouped by binding or logical source (recommend binding count
+with unique affected assignments); writer-barrier enforcement across existing household commands
+without changing educational/auth semantics; explicit blocked-operation/manual resolution UX;
+governed discovery cancellation/takeover protocol and future native verification plan. Recommend
+no retirement reversal: reattachment creates a fresh binding ID. No decision here changes approved
+retention/deletion policies or authorizes any implementation. READY FOR GATE 4B.3B-3A REVIEW.
+
 ## Gate 4B.3B-2B.1: final binding verification
 
 Reviewed the complete seven-path milestone against 4B.3A.1 and the existing private
