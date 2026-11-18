@@ -1,5 +1,19 @@
 # Development Log
 
+## 2026-11-18 — Gate 4B.3B-3B.1 retirement milestone verification
+
+- Reviewed the ten authorized paths against the accepted contract. Confirmed transactional v4 migration, immutable history, unchanged household v1 receipt, atomic event/completion/epoch, authorized exact replay, durable ownership and discovery-fence refusal without fence creation/release.
+- Re-ran retirement tests26/26, combined repository/household178/178, full suite506/506 and lint successfully. These are Node SQLite results, not Android-native evidence.
+- Documented the absent composed active-binding query as a future integration dependency; raw canonical bindings retain history and must be combined with verified retirement events. Writer coverage and linked deletion remain blocked. No runtime scope expansion, native work, installed-data access or push.
+
+## 2026-11-18 — FC-007B Gate 4B.3B-3B immutable retirement persistence
+
+- Resumed after owner clarification: retirement persists reservation/ownership only, creates no target fence, respects existing discovery fences without schema/lifecycle changes. Baseline main61622681649aae3e623007968737c878c7b34c05 was clean.
+- Implemented isolated additive capture DB v4 migration and captureRetirement event1 ledger/validators. Added request2/operation3 dispatch, parent-authorized retire/recover and unchanged v1 retire_binding household receipt mapping. Atomic capture completion updates only event/coordination journal/reference epoch; original manifest/history and household bytes/revisions stay unchanged.
+- Added26 two-SQLite tests for authorization, receipt/event atomicity, exact recovery/replay across restart, stale owner/epoch/lease, fence refusal/persistence, migration byte preservation, legacy pending retirement refusal and malformed ledger/index. Updated existing capture migration expectations/fixtures for v4; existing completed/pending bind and adoption regressions preserved. No household source/schema/validator changes.
+- `node --test tests/captureRetirement.test.js tests/captureBindingCoordinator.test.js tests/captureCoordination.test.js tests/captureSqliteStore.test.js tests/captureImageAdoption.test.js tests/captureRepositoryCore.test.js tests/householdCoordination.test.js tests/nativeHousehold.test.js`:178/178. `npm.cmd test`:506/506. `npm.cmd run lint`:passed after removing one unused test variable. Node22.23.4; experimental SQLite warning expected. Hygiene/scope checks passed; no Android-native verification claimed.
+- Ten paths: coordinator service, capture coordination/store, new retirement helper/test, two existing capture tests and three development documents. No file deletion/cleanup, discovery/writer-barrier implementation, UI/production/proof integration, dependency/native/build/install, installed-data access, stage/commit/push. Legacy manual resolution, native evidence, writer coverage and deletion remain gated. READY FOR GATE 4B.3B-3B REVIEW.
+
 ## FC-007B Gate 4B.3B-3A.3 — accepted design milestone verification
 
 - Owner accepted Gates 3A/3A.2 and the capture v4/event1/request2/operation3 contract. Verified immutable binding/manifest history, E->E+1 reservation and atomic event/completion/E+2, additive transactional migration, preserved legacy interpretation and exact durable recovery evidence. Household retire_binding receipt v1 remains unchanged.

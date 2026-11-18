@@ -1,5 +1,109 @@
 # FC-007B capture technology proof
 
+## Gate 4B.3B-3B.1: final verification
+
+Verified the ten-path milestone against the accepted durable contract: additive transactional
+v4 migration; event1/request2/operation3; unchanged household v1 receipt; immutable original
+binding/manifest history; authorized exact replay; epoch CAS; durable ownership; and existing
+discovery-fence refusal without fence creation or release. Re-ran retirement26/26, combined
+178/178, full506/506 and lint successfully. Node SQLite evidence does not establish Android
+native behavior.
+
+Outstanding integration dependency: no composed active-binding query is implemented.
+Canonical manifest bindings intentionally retain historical edges. A future trusted query
+must combine them with validated retirement events by exact binding identity, fail closed
+on missing/conflicting evidence, and retain retired edges for historical deletion discovery.
+The current retirement path checks ledger evidence to prevent repeated retirement; this is
+not general writer coverage or reference-completeness proof. Linked deletion remains blocked.
+
+## Gate 4B.3B-3B: isolated immutable retirement persistence
+
+Implemented against design commit61622681649aae3e623007968737c878c7b34c05 and the
+owner's reservation-versus-fence clarification. This section records runtime changes;
+the approved design/history below remains intact. No production composition, UI,
+writer barrier, deletion/discovery workflow, unlink or cleanup was implemented.
+
+### Implemented formats and migration
+
+The isolated capture adapter now initializes/migrates to SQLite user_version4. New
+storage/captureRetirement.js defines the approved retirement_events columns, eventVersion1,
+unique event/binding/operation/idempotency/committed-epoch constraints, scope index and
+canonical event/completion validation. Reads validate table/index shape, uniqueness,
+binding fingerprint, operation/event bijection and derived retirement receipt fingerprint.
+There is no event update/delete API. General capture load/inspect still returns the
+existing manifest/metadata journal, not installation scope or retirement ledger data.
+Only the private coordinator's authorized retirementEvents accessor exposes the ledger.
+
+v3 validation, additive table/index creation, version update and v4 validation share one
+exclusive SQLite transaction. Existing v1/v2 migrations still chain through validated v3.
+Malformed/future/partial repositories and missing required v4 objects reject without repair.
+Tests preserve exact old table rows, manifests, binding records, adoption checkpoints,
+pending creation reservations and recovery state through actual close/reopen migration.
+Legacy pending retire recordVersion1 is retained and counts as unresolved protection;
+new continuation/claim/retirement attempts reject legacy_retirement_reconciliation_required.
+No installed Android database was opened or migrated.
+
+### Private retirement and receipt path
+
+createCaptureBindingCoordinator retains bind and now has retire plus explicit recover
+dispatch. New retirement accepts only requestVersion2/kind retire with the approved
+event ID, original binding revision/fingerprint and exact current household vector.
+Scope comes from the existing protected identity bridge; caller scope/extra keys reject.
+Unfinished operations verify current assignment/source/revisions. Completed retirement
+replay reconciles historical event and receipt rather than requiring unchanged current
+educational revisions after a later correction. Current authorization is always required.
+
+reserve persists operation recordVersion3/completion=null and E->E+1 under manifest/epoch
+CAS. It checks the exact immutable edge, effective active status, duplicate event/binding/
+receipt identities and existing discovery fences. It creates NO retirement-specific fence.
+Claim/takeover retains existing owner-generation/60-second lease rules. Issuance validation
+checks current reservation ownership, original edge, manifest, epoch and discovery fence.
+No expiry releases or overrides any fence, creates a receipt or grants a stale worker access.
+
+Household receiptRequest explicitly dispatches retire_binding with ORIGINAL edge revision,
+CURRENT expected document revisions, E/reservation generation and null payloadDigest/mutator.
+Existing household v1 adapter, source files, authentication, payload and assignment validators
+are unchanged. Receipt-only issuance preserves exact assignment payload bytes/revisions,
+review, approval, fidelity and practice eligibility. Final synchronous issuance guard checks
+the existing parent session and current lease; post-issuance revocation suppresses results.
+
+### Atomic completion and recovery evidence
+
+commitRetirement rereads matching durable household receipt and immutable edge, validates
+all typed request/fingerprint/scope/revision/receipt metadata, and checks current owner,
+lease, manifest revision, E+1 and absence of a target discovery fence. After final current
+parent guard, one capture transaction advances E+1->E+2 with database scope/manifest CAS,
+INSERTs the event and CAS-updates the version3 completion journal. Failed SQL/commit rolls
+back event/completion/epoch together. Original manifest bytes, binding history and the
+manifest-advancing operations journal remain unchanged. Epoch occupied positions and
+event/completion associations are validated; existing completed bind interpretation is kept.
+
+Authorized recovery handles reservation-only, receipt-only and event/acknowledgement-loss
+states with stable IDs. Exact replay returns the stored event unchanged, and no receipt or
+event is duplicated. Stale document/manifest/epoch, changed targets, missing or conflicting
+evidence and incompatible discovery fences block rather than rebase. Outstanding reservations
+and fences remain durable. Completed events retain historical links after later corrections.
+The two SQLite repositories are never claimed atomic together; no unattended authorization
+or destructive recovery is inferred. Legacy ambiguous retirement requires explicit later
+reconciliation rather than automatic upgrade or an assumed absent household receipt.
+
+### Verification and limits
+
+26 new real two-database retirement tests; combined retirement/binding/capture/household
+178/178 and full506/506 passed under Node22.23.4. Existing binding29, capture83 and household40
+tests remain passing. Tests cover migration rollback/preservation, event rollback, each durable
+restart/acknowledgement boundary, replay/conflicts, original/current revisions, authorization,
+ownership/lease/epoch CAS, legacy retirement refusal, malformed state/index and fence persistence.
+Lint and whitespace/conflict/secret-pattern/scope checks passed. Initial lint found one unused
+test variable; removed without runtime behavior change. These are isolated Node SQLite/fake
+SecureStore tests, NOT Android-native migration/transaction/process-kill or filesystem evidence.
+
+Retirement changes only effective binding lifecycle (original edge plus its immutable event).
+It does not change source availability, remove image bytes, approve content, prove complete
+reference discovery or establish deletion eligibility. Writer coverage and production wiring
+remain unverified; linked deletion remains blocked. No dependency/native/build/install, installed
+household access, stage/commit/push or next-gate work. READY FOR GATE 4B.3B-3B REVIEW.
+
 ## Gate 4B.3B-3A.2: selected durable retirement contract (design only)
 
 This selected specification resolves the four compatibility questions recorded in 3A.1

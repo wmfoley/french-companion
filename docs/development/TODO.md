@@ -2,6 +2,11 @@
 
 ## FC-007B Gate 4B.3B-1 — native household foundation
 
+- [x] Gate 4B.3B-3B.1 final verification: retirement26/26, combined178/178, full506/506 and lint passed; ten-path local milestone commit authorized after hygiene/staged inspection.
+- [ ] Future integration: compose an active-binding query from canonical historical edges and validated retirement events; no such general query is implemented. Preserve retired references for discovery and fail closed on inconsistent evidence. No deletion eligibility follows from retirement.
+- [x] Gate 4B.3B-3B isolated implementation: capture v4 migration, append-only event1 ledger, retirement request2/operation3 reservation and atomic event/completion/E+2; original manifest/bindings/household bytes preserved. Private parent-authorized retire/recover uses unchanged household v1 receipt. No retirement-specific fence; existing discovery fences block and persist. New26 tests, focused178/178, full506/506, lint/hygiene passed; Node evidence only.
+- [ ] Still separate/unimplemented: governed legacy retirement resolution, complete writer fencing/discovery, deletion/confirmation/fence release, file effects/cleanup, production composition/UI and Android-native verification/build/install. Retirement does not authorize deletion.
+
 - [x] Gate 4B.3B-3A.2 design resolution, owner accepted in 3A.3: capture DB v4 append-only retirement_events/eventVersion1, new retirement requestVersion2 and recordVersion3 completion; preserve manifest/journal and use reference-epoch-only retirement commit. Explicit migration/legacy pending retirement fail-closed rules and exact receipt/recovery mapping supersede the historical 3A.1 blocker. One local documentation commit authorized; no runtime implementation/migration/tests authorized or performed.
 
 - [x] Historical Gate 4B.3B-3A.1 reported BLOCKED for documentation commit: household v1 receipt mapping was compatible, but retirement schema/encoding, completion version and journal/epoch accounting were unresolved. Gate 3A.2 now selects those formats for owner review; implementation/commit remain gated. Existing writer-coverage/deletion blocks remain.

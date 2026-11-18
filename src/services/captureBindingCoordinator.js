@@ -3,11 +3,12 @@ function fail(code) { const error = new Error(code); error.code = code; throw er
 
 // INTERNAL trusted composition only. No factory use in production startup or UI.
 function createCaptureBindingCoordinator({ household, parentBridge, householdReferences, capture, newOwner, now }) {
-  async function bind(capability, input) {
+  async function perform(capability, input, kind) {
     // Snapshot intent before any asynchronous work; the capture adapter enforces exact shape.
     const request = JSON.parse(JSON.stringify(input));
-    if (request.kind !== 'bind' || !Array.isArray(request.householdRevisions) || request.householdRevisions.length !== 1 ||
+    if (request.kind !== kind || !Array.isArray(request.householdRevisions) || request.householdRevisions.length !== 1 ||
       request.householdRevisions[0].assignmentId !== request.assignmentId) fail('invalid_binding_request');
+    if (kind === 'retire' && request.requestVersion !== 2) fail('legacy_retirement_reconciliation_required');
     const ticket = parentBridge.captureParentTicket(capability);
     return parentBridge.withParentTicket(ticket, async guard => {
       const identity = await householdReferences.readVerifiedInstallationIdentity(guard);
@@ -18,7 +19,8 @@ function createCaptureBindingCoordinator({ household, parentBridge, householdRef
         if (snapshot.document.contentRevision !== expected.contentRevision || snapshot.writeRevision !== expected.writeRevision) fail('stale_assignment');
         if (!snapshot.document.assignment.sources.some(s => s.id === request.sourceId)) fail('source_not_found');
       }
-      await verifyTarget();
+      const previous = kind === 'retire' ? (await capture.inspect()).operations.find(o => o.request.operationId === request.operationId) : null;
+      if (!(kind === 'retire' && previous?.phase === 'complete')) await verifyTarget();
       guard(); const reservation = await capture.reserve(request); const op = reservation.operation;
       if (op.installationRef !== identity.installationRef) fail('scope_mismatch');
       let claimed = op;
@@ -39,9 +41,14 @@ function createCaptureBindingCoordinator({ household, parentBridge, householdRef
         receipt = await readReceipt();
       }
       // Capture commit rereads durable receipt inside its transaction. No caller receipt object is authority.
-      return capture.commitBinding(request.operationId, claimed.ownerGeneration, claimed.owner, async () => { await verifyTarget(); return readReceipt(); }, guard);
+      const commit = kind === 'retire' ? capture.commitRetirement : capture.commitBinding;
+      return commit(request.operationId, claimed.ownerGeneration, claimed.owner, async () => {
+        if (!(kind === 'retire' && op.phase === 'complete')) await verifyTarget(); return readReceipt();
+      }, guard);
     });
   }
-  return Object.freeze({ bind, recover: bind });
+  const bind = (capability, request) => perform(capability, request, 'bind');
+  const retire = (capability, request) => perform(capability, request, 'retire');
+  return Object.freeze({ bind, retire, recover: (capability, request) => request?.kind === 'retire' ? retire(capability, request) : bind(capability, request) });
 }
 module.exports = { createCaptureBindingCoordinator };

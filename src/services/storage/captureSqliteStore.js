@@ -1,5 +1,6 @@
 const Core = require('../../core/capture/captureRepositoryCore');
 const Coordination = require('./captureCoordination');
+const Retirement = require('./captureRetirement');
 const DATABASE_NAME = 'french-companion-captures-v1.db';
 const id = x => typeof x === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(x);
 const number = x => Number.isSafeInteger(x) && x >= 0;
@@ -105,7 +106,7 @@ function createCaptureSqliteStore({ openDatabase, newId, now, trustedInstallatio
           await tx.execAsync(SCHEMA);
           const m = Core.emptyManifest();
           await tx.runAsync('INSERT INTO repository(id,schema_version,revision,manifest) VALUES(1,1,?,?)', m.revision, Core.serialize(m));
-        } else if (![1, 2, 3].includes(version)) fail('unsupported_database_version');
+        } else if (![1, 2, 3, 4].includes(version)) fail('unsupported_database_version');
         // v1 -> v2 changes only this isolated capture DB; preserve its journal.
         if (version === 0 || version === 1) {
           await tx.execAsync(`ALTER TABLE operations RENAME TO operations_v1;
@@ -117,10 +118,16 @@ function createCaptureSqliteStore({ openDatabase, newId, now, trustedInstallatio
             PRAGMA user_version=2;`);
         }
         const current = await read(tx);
-        if (version !== 3) {
+        if (version < 3) {
           const existing = await tx.getAllAsync("SELECT name FROM sqlite_master WHERE name IN ('scope_binding','coordination_operations','coordination_fences')");
           if (existing.length) fail('invalid_coordination');
           await tx.execAsync(Coordination.SCHEMA);
+        }
+        if (version < 4) {
+          await Coordination.readCoordination(tx, current.manifest, true);
+          const existing = await tx.getAllAsync("SELECT name FROM sqlite_master WHERE name IN ('retirement_events','retirement_events_scope')");
+          if (existing.length) fail('invalid_retirement');
+          await tx.execAsync(Retirement.SCHEMA);
         }
         await Coordination.readCoordination(tx, current.manifest);
       });
@@ -132,7 +139,7 @@ function createCaptureSqliteStore({ openDatabase, newId, now, trustedInstallatio
     try {
       const db = await open(); let result;
       await db.withExclusiveTransactionAsync(async tx => {
-        if ((await tx.getFirstAsync('PRAGMA user_version')).user_version !== 3) fail('unsupported_database_version');
+        if ((await tx.getFirstAsync('PRAGMA user_version')).user_version !== 4) fail('unsupported_database_version');
         const current = await read(tx);
         await Coordination.readCoordination(tx, current.manifest);
         result = await action(tx, current);

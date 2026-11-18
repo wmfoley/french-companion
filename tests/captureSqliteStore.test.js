@@ -35,8 +35,8 @@ const external = (extra = {}) => request({ type: 'adoption', command: null, capt
 test('fresh isolated initialization has canonical v1 authority and no household tables', async () => {
   const h = harness(); const store = h.factory(); const m = await store.load();
   assert.equal(m.revision, 1); assert.equal(m.captures.length, 0); assert.deepEqual(h.opened, [DATABASE_NAME]);
-  assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 3);
-  assert.deepEqual(h.db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map(r => r.name), ['adoptions', 'coordination_fences', 'coordination_operations', 'operations', 'repository', 'scope_binding']);
+  assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.deepEqual(h.db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map(r => r.name), ['adoptions', 'coordination_fences', 'coordination_operations', 'operations', 'repository', 'retirement_events', 'scope_binding']);
   h.db.close();
 });
 test('metadata commit and defensive load round trip', async () => {
@@ -182,13 +182,13 @@ test('missing schema objects in an existing versioned repository are not recreat
 });
 test('v1 metadata migration preserves committed authority and journal', async () => {
   const h = harness(); const s = h.factory(); await s.applyMetadata(request()); const before = await s.load();
-  h.db.exec('DROP TABLE coordination_fences; DROP TABLE coordination_operations; DROP TABLE scope_binding; DROP TABLE adoptions; PRAGMA user_version=1');
+  h.db.exec('DROP TABLE retirement_events; DROP TABLE coordination_fences; DROP TABLE coordination_operations; DROP TABLE scope_binding; DROP TABLE adoptions; PRAGMA user_version=1');
   const restarted = h.factory(); assert.deepEqual(await restarted.load(), before);
-  assert.equal((await restarted.inspect()).operations.length, 1); assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 3); h.db.close();
+  assert.equal((await restarted.inspect()).operations.length, 1); assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 4); h.db.close();
 });
 test('interrupted v1 migration leaves original records and version intact', async () => {
   const h = harness(); const s = h.factory(); await s.applyMetadata(request());
-  h.db.exec('DROP TABLE coordination_fences; DROP TABLE coordination_operations; DROP TABLE scope_binding; DROP TABLE adoptions; PRAGMA user_version=1');
+  h.db.exec('DROP TABLE retirement_events; DROP TABLE coordination_fences; DROP TABLE coordination_operations; DROP TABLE scope_binding; DROP TABLE adoptions; PRAGMA user_version=1');
   h.fault(sql => sql.startsWith('ALTER TABLE operations'));
   await assert.rejects(h.factory().load()); h.fault(null);
   assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 1);

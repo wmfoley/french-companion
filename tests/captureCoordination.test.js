@@ -51,10 +51,10 @@ async function prepared(t, disk = false) {
 }
 const fence = request => ({ ...request, operationId: 'fence-one', idempotencyKey: 'fence-key', kind: 'discover_delete', assignmentId: null, sourceId: null, bindingId: null, receiptOperationId: null, householdRevisions: [] });
 
-test('empty v3 initialization, explicit private bootstrap and exact replay reveal no identity publicly', async t => {
+test('empty v4 initialization, explicit private bootstrap and exact replay reveal no identity publicly', async t => {
   const h = harness(t); assert.deepEqual(await h.api.bootstrap(), { generation: 1, referenceEpoch: 0 });
   assert.deepEqual(await h.api.bootstrap(), { generation: 1, referenceEpoch: 0 });
-  assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 3);
+  assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 4);
   assert.equal(h.store.bootstrap, undefined); assert.equal(h.store.reserve, undefined);
   assert.equal(JSON.stringify(await h.store.inspect()).includes('installation-one'), false);
   await assert.rejects(h.api.bootstrap({ householdId: 'caller' }), { code: 'invalid_coordination' });
@@ -137,11 +137,11 @@ test('v2 migration preserves exact manifests, adoption identity/checkpoints and 
   await h.store.registerOperation({ operationId: 'pending-adoption', idempotencyKey: 'pending-key', expectedRevision: 3, type: 'adoption', command: null, args: [], captureId, assetId: null });
   const recoveryBefore = await h.store.listRecovery(); const journalBefore = await h.store.inspect();
   const adoption = h.db.prepare('SELECT state FROM adoptions').get().state;
-  h.db.exec('DROP TABLE coordination_fences; DROP TABLE coordination_operations; DROP TABLE scope_binding; PRAGMA user_version=2');
+  h.db.exec('DROP TABLE retirement_events; DROP TABLE coordination_fences; DROP TABLE coordination_operations; DROP TABLE scope_binding; PRAGMA user_version=2');
   h.reopen(); assert.deepEqual(await h.store.inspect(), journalBefore);
   assert.deepEqual(await h.store.listRecovery(), recoveryBefore);
   assert.equal(h.db.prepare('SELECT state FROM adoptions').get().state, adoption);
-  assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 3);
+  assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 4);
   await assert.rejects(h.api.bootstrap(), { code: 'unbound_repository_nonempty' });
 });
 
@@ -169,7 +169,7 @@ test('identity mismatch rejects reservation and recovery without exposing existi
 });
 test('interrupted migration rolls back without recreating or resetting existing data', async t => {
   const h = harness(t, true); await h.store.applyMetadata(metadata('create-one', 1)); const before = await h.store.inspect();
-  h.db.exec('DROP TABLE coordination_fences; DROP TABLE coordination_operations; DROP TABLE scope_binding; PRAGMA user_version=2');
+  h.db.exec('DROP TABLE retirement_events; DROP TABLE coordination_fences; DROP TABLE coordination_operations; DROP TABLE scope_binding; PRAGMA user_version=2');
   h.reopen(); h.fault(sql => sql.startsWith('CREATE TABLE scope_binding'));
   await assert.rejects(h.store.load()); h.fault(() => false);
   assert.equal(h.db.prepare('PRAGMA user_version').get().user_version, 2);
