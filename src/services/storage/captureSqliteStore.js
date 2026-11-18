@@ -1,4 +1,5 @@
 const Core = require('../../core/capture/captureRepositoryCore');
+const Coordination = require('./captureCoordination');
 const DATABASE_NAME = 'french-companion-captures-v1.db';
 const id = x => typeof x === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(x);
 const number = x => Number.isSafeInteger(x) && x >= 0;
@@ -33,7 +34,7 @@ CREATE INDEX operations_recovery ON operations(phase,id);
 PRAGMA user_version=1;`;
 
 /** Inject an Expo-SQLite-shaped database. Not connected to application startup or UI. */
-function createCaptureSqliteStore({ openDatabase, newId, now }) {
+function createCaptureSqliteStore({ openDatabase, newId, now, trustedInstallationIdentity, onCoordinationReady }) {
   if (![openDatabase, newId, now].every(fn => typeof fn === 'function')) fail('invalid_dependencies');
   let opening;
   function time() { const t = now(); if (!number(t)) fail('invalid_time'); return t; }
@@ -89,9 +90,9 @@ function createCaptureSqliteStore({ openDatabase, newId, now }) {
           await tx.execAsync(SCHEMA);
           const m = Core.emptyManifest();
           await tx.runAsync('INSERT INTO repository(id,schema_version,revision,manifest) VALUES(1,1,?,?)', m.revision, Core.serialize(m));
-        } else if (![1, 2].includes(version)) fail('unsupported_database_version');
+        } else if (![1, 2, 3].includes(version)) fail('unsupported_database_version');
         // v1 -> v2 changes only this isolated capture DB; preserve its journal.
-        if (version !== 2) {
+        if (version === 0 || version === 1) {
           await tx.execAsync(`ALTER TABLE operations RENAME TO operations_v1;
             CREATE TABLE operations (id TEXT PRIMARY KEY, idempotency_key TEXT NOT NULL UNIQUE, type TEXT NOT NULL CHECK(type IN ('metadata','adoption','deletion','cleanup')), request TEXT NOT NULL, phase TEXT NOT NULL CHECK(phase IN ('pending','retryable','blocked','failed','completed')), generation INTEGER NOT NULL CHECK(generation>0), created_at INTEGER NOT NULL CHECK(created_at>=0), updated_at INTEGER NOT NULL CHECK(updated_at>=created_at), attempts INTEGER NOT NULL CHECK(attempts>=0), error_code TEXT, committed_revision INTEGER UNIQUE);
             INSERT INTO operations SELECT * FROM operations_v1;
@@ -100,7 +101,13 @@ function createCaptureSqliteStore({ openDatabase, newId, now }) {
             CREATE TABLE adoptions (id TEXT PRIMARY KEY REFERENCES operations(id), state TEXT NOT NULL);
             PRAGMA user_version=2;`);
         }
-        await read(tx);
+        const current = await read(tx);
+        if (version !== 3) {
+          const existing = await tx.getAllAsync("SELECT name FROM sqlite_master WHERE name IN ('scope_binding','coordination_operations','coordination_fences')");
+          if (existing.length) fail('invalid_coordination');
+          await tx.execAsync(Coordination.SCHEMA);
+        }
+        await Coordination.readCoordination(tx, current.manifest);
       });
       return db;
     })().catch(e => { opening = null; throw e; });
@@ -110,8 +117,10 @@ function createCaptureSqliteStore({ openDatabase, newId, now }) {
     try {
       const db = await open(); let result;
       await db.withExclusiveTransactionAsync(async tx => {
-        if ((await tx.getFirstAsync('PRAGMA user_version')).user_version !== 2) fail('unsupported_database_version');
-        result = await action(tx, await read(tx));
+        if ((await tx.getFirstAsync('PRAGMA user_version')).user_version !== 3) fail('unsupported_database_version');
+        const current = await read(tx);
+        await Coordination.readCoordination(tx, current.manifest);
+        result = await action(tx, current);
       });
       return clone(result);
     } catch (e) { if (typeof e.code === 'string' && !e.code.startsWith('ERR_')) throw e; fail('persistence_failed'); }
@@ -132,6 +141,7 @@ function createCaptureSqliteStore({ openDatabase, newId, now }) {
     await tx.runAsync('INSERT INTO operations(id,idempotency_key,type,request,phase,generation,created_at,updated_at,attempts,error_code,committed_revision) VALUES(?,?,?,?,?,1,?,?,0,NULL,?)',
       r.operationId, r.idempotencyKey, r.type, payload, phase, t, t, committedRevision);
   }
+  onCoordinationReady?.(Coordination.createCaptureCoordination({ transaction, trustedIdentity: trustedInstallationIdentity, now }));
   return {
     recordImageObservation: (operationId, expectedRevision, assetId, observation) => transaction(async (tx, s) => {
       exact(observation, ['status', 'integrity']);

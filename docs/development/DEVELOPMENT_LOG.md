@@ -1,5 +1,13 @@
 # Development Log
 
+## FC-007B Gate 4B.3B-2A — capture-side foundation
+
+- Verified clean main at 8a8b5fe03225275817996395d0ffdd30696f8a53 and preserved synchronization state. Reviewed approved 4B.3A.1 against canonical core, capture SQLite v2 migration/journal/CAS, immutable adoption checkpoints and household receipt foundation.
+- Added internal captureCoordination adapter and transactional additive capture DB v3 sidecars. Explicit empty-only trusted scope bootstrap, no silent rebinding; canonical request fingerprints, manifest/epoch SQL CAS, reservation identity conflicts, persistent discovery fences, unknown receipt state and recovery-generation leases. No cross-store calls, binding creation, completion/release or deletion/cleanup.
+- Added17 isolated real-SQLite tests with synthetic identity, disk reopen, migration/rollback faults, pending recovery/adoption preservation, mismatch, malformed records, competing epochs, lost acknowledgement and stale-owner cases. Existing capture SQLite migration/table expectations updated to v3. Initial malformed-input assertion exposed synchronous API validation; reserve made consistently async. Epoch-race fixture then separated from duplicate-reference rejection to test the intended boundary.
+- `node --test tests/captureCoordination.test.js tests/captureSqliteStore.test.js tests/captureImageAdoption.test.js tests/captureRepositoryCore.test.js`:83/83. `npm.cmd test`:451/451. `npm.cmd run lint`:passed under Node22.23.4, with expected experimental Node SQLite warning. Existing gesture/worklet and household regressions included. Hygiene/scope checks passed; no Android-native claim.
+- Seven-path scope: new coordinator helper/test, capture store/test and these three documents. No household source/data, assignment validator, capture/proof UI, native/dependency or image-file change; no build/install, stage/commit/push. Trusted production identity composition, household evidence/reconciliation and complete writer coverage remain separate unauthorized Gate 4B.3B-2B work. READY FOR GATE 4B.3B-2A REVIEW.
+
 ## 2026-11-18 UTC — FC-007B Gate 4B.3B-1A authorization/atomicity verification
 
 - Reviewed the complete five-file foundation source/test diff against Gate 4B.3A.1. No production correction needed; existing ticket epoch/expiry checks, ready/SecureStore identity, same-transaction payload/receipt writes and post-issuance result suppression retained.

@@ -1,5 +1,107 @@
 # FC-007B capture technology proof
 
+## Gate 4B.3B-2A: isolated capture-side coordination foundation
+
+Implemented after accepted local household foundation commit
+8a8b5fe03225275817996395d0ffdd30696f8a53. This is capture-only storage foundation,
+not the cross-store coordinator or proof of complete reference-writer coverage.
+No household adapter is called, no assignment/binding is created or retired, no
+production caller is wired, and no deletion/cleanup/reconciliation is implemented.
+
+### Storage and internal boundaries
+
+captureSqliteStore now transactionally migrates isolated database user_version 2 to 3
+(v1 still migrates through v2). Canonical manifest schema remains v1, byte content,
+revision and historical bindings unchanged. Existing operations/adoptions remain intact.
+New tables are scope_binding (singleton version1, installation_ref, generation1,
+reference_epoch), coordination_operations (unique operation and idempotency key,
+canonical versioned state), and coordination_fences (unique asset/operation, discovery
+state, operation FK declaration). Application validation enforces associations even
+without relying on a connection's foreign_keys setting. No reset/recreate repair.
+Migration rejects preexisting partial sidecars, malformed authority and future versions;
+DDL, version change and validation share one transaction. Every subsequent transaction
+revalidates sidecar columns, scope, operation state/fingerprint and fence associations.
+
+Optional constructor-only onCoordinationReady receives the private API implemented in
+storage/captureCoordination.js. Existing returned store methods/general inspect responses
+do not include scope identity or coordinator records. trustedInstallationIdentity is
+an injected internal adapter returning exactly {installationRef}; not a request selector
+or independent authentication mechanism. It must eventually close over the accepted
+verified household identity/authorization bridge; production composition is NOT wired.
+No SecureStore read/write is added here. Tests inject synthetic identities only.
+
+bootstrap() accepts no arguments, binds an empty revision1/no-journal repository only,
+and replays an exact existing identity. Nonempty unbound data, unknown/malformed identity,
+unexpected scope and rebinding reject. Generation remains1: no rebind API. Existing
+captures never acquire ownership implicitly. Other private operations require matching
+identity obtained inside their capture transaction. bootstrap returns generation/epoch,
+not installation identity. Private operation inspection is privileged, never UI data.
+
+### Reservation and journal contract
+
+reserve accepts exact fields: operationId, idempotencyKey, kind bind/retire/discover_delete,
+assetId, assignmentId/sourceId/bindingId, expectedManifestRevision,
+expectedReferenceEpoch, sorted unique householdRevisions entries
+{assignmentId,contentRevision,writeRevision}, and receiptOperationId. Discovery has null
+reference/receipt targets; bind/retire require them and a target revision entry. These
+household revision values are EXPECTATIONS, never verified household evidence here.
+Retire requires an existing matching canonical binding, but performs no retirement.
+Bind requires an available noncorrupt asset and unused committed binding identity.
+
+One canonical operation row is both the unfinished reservation and recovery journal;
+it does not duplicate the committed binding graph. State includes recordVersion1,
+complete request, verified installation reference, SHA-256 canonical request fingerprint,
+reservationGeneration, ownerGeneration/token, leaseUntil, phase reserved/blocked,
+receiptState unknown, timestamps, fixed errorCode, and null issuedAt/completedAt.
+No input may assert household_applied/binding_applied/complete. Unsupported partial
+states fail closed and remain physically retained rather than being auto-repaired.
+
+Reservation checks canonical manifest revision, current reference epoch and target fence
+in one exclusive capture transaction. SQL epoch UPDATE CAS also predicates on repository
+revision; epoch advancement, reservation row and optional discovery fence commit together.
+Each new operation advances referenceEpoch once; reservationGeneration records that value.
+Exact replay preserves IDs, sequence and state even after epoch advances. Same ID/key
+with different canonical request rejects. Binding reservation and receipt-operation IDs
+cannot be reused by conflicting operations. Existing adoption journal IDs/keys are checked.
+Canonical manifest and its own operation journal are not rewritten by reservations.
+
+### Protective fences and recovery ownership
+
+discover_delete means protective discovery reservation ONLY, not deletion authorization
+or issuance. A discovery fence prevents new coordinator reference reservations for that
+asset; existing reservations remain visible for future reconciliation. It survives restart,
+lease expiry and blocked state. There is NO release/cancel/unlink/complete method in this
+gate; approved cross-store reconciliation is required before a future release API exists.
+All implemented coordinator reservation writers use this same durable check. Existing
+capture/adoption writers do not create references; future all-writer coverage is unproven.
+
+claim(operationId, expectedOwnerGeneration, owner) acquires a 60-second recovery lease,
+increments generation with exact-record SQL CAS, and rejects active leases/stale owners.
+At expiry a new owner can claim; clock rollback rejects transitions, not protection.
+block(operationId, ownerGeneration, owner, code) accepts only current unexpired owner
+and receipt_unknown/storage_unavailable/reconciliation_required. Neither transition
+claims a household result, changes the binding graph or releases a fence. Crash/lost
+acknowledgement of reservation replays exactly; lost claim acknowledgement may wait for
+lease expiry before reacquiring. No timeout is evidence of absent household work.
+
+### Verification and remaining gates
+
+17 new real-SQLite tests cover bootstrap/privacy, mismatch/rebinding, nonempty and
+pending-work ownership refusal, epoch/revision SQL CAS, competing instances, conflicting
+identities, insertion/commit rollback, disk reopen, lease takeover/stale owner, persistent
+fences, unknown receipts, v2 migration preserving adoption/recovery and malformed state.
+Existing v1 migration expectations now target database v3, without changing behavior.
+Combined coordinator17 + metadata22 + adoption21 + core23 =83/83; full451/451 and lint
+passed under Node22.23.4. Whitespace, conflict-marker, secret-pattern and scope checks
+passed. These isolated Node SQLite/fake identity tests are NOT Android-native evidence.
+
+Future Gate 4B.3B-2B remains unauthorized: trusted household/capture composition, verified
+revision snapshots/receipt lookup, cross-store reservation reconciliation, actual immutable
+bindings/retirement, complete writer proof and protected parent workflows. CAP-002 saved
+scope remains disabled in production. No production capture, file effects, native build,
+dependency change, device data access, stage/commit/push. Android Expo SQLite transactions,
+SecureStore bridge availability, lifecycle and crash durability need separate verification.
+
 ## Gate 4B.3B-1A: authorization and atomicity verification (2026-11-18 UTC)
 
 Reviewed the complete householdService/sqliteStore/nativeHousehold diff and new
