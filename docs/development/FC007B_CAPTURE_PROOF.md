@@ -1,5 +1,686 @@
 # FC-007B capture technology proof
 
+## Gate 4B.3B-1A: authorization and atomicity verification (2026-11-18 UTC)
+
+Reviewed the complete householdService/sqliteStore/nativeHousehold diff and new
+householdReferenceReceipts/householdCoordination files against Gate 4B.3A.1.
+No production correction was required. Six additional tests bring coordination
+coverage to 25 tests, combined household coverage to 78/78 and full regression to
+434/434. Lint and whitespace/conflict/secret-pattern/scope checks passed.
+
+Authorization is checked before entering the serialized work, after awaited
+schema/SecureStore reads, and synchronously immediately before the receipt INSERT.
+There is no await between that final guard and SQL issuance. A new test revokes
+the session inside the synchronous target mutator: no INSERT or payload change
+occurs. Existing tests cover pre-issuance expiry and revocation, post-issuance
+atomic completion with protected-result suppression, and stale callbacks preserving
+a newer session. Exact replay also requires current authorization: revoked, expired
+and replaced tickets reject without another receipt or invalidating a newer session.
+
+Both receipt and target payload writes use the same exclusive SQLite transaction.
+Tests inject failures at INSERT and payload UPDATE and verify rollback. Receipt-only
+operations preserve original payload bytes and effective legacy revisions. Every
+request field participates in the canonical fingerprint; conflicting replay rejects
+before mutation. A real temporary database close/reopen test now creates a second
+receipt and verifies its increasing sequence, with replay retaining the old sequence.
+Unsupported sidecar versions and malformed receipt records continue to fail closed.
+
+Recovery/identity reads are absent from the returned public household service/store.
+Missing guards and forged/serialized/revoked tickets reject in the intended internal
+composition. Important trust limit: the adapter checks that its guard is callable;
+it cannot itself prove that an arbitrary injected function came from the ticket
+bridge. Constructor callbacks and guard injection are privileged internal composition,
+not public authorization endpoints. A future coordinator must retain these accessors
+privately and wrap every protected call in withParentTicket. No public recovery API
+or coordinator wiring is introduced by this foundation.
+
+Ready-state identity still requires the existing matching SecureStore credential;
+no verifier exposure, silent pending promotion, repair or rebinding is added. Existing
+approval/fidelity/policy/practice commands, assignment validators, web composition and
+application identities are unchanged. No actual image bindings or retirement occurred.
+Node SQLite tests use fake SecureStore/credentials and an Expo-shaped transaction
+bridge: they do not establish Android-native transaction, SecureStore or lifecycle
+behaviour. Native verification and trusted capture-side coordination remain future,
+separately authorized work. No build, device-data access, stage, commit or push.
+
+## Gate 4B.3B-1: native household coordination foundation (2026-11-18 UTC)
+
+Implemented only the authorized household foundation, not a reference coordinator.
+No actual image binding/retirement, capture scope binding, fences, deletion, duplicate
+provider wiring, UI integration or next-gate work. Existing localHousehold.js/web
+composition and public service method list remain unchanged.
+
+### Internal authorization/identity interfaces
+
+createHouseholdService optionally delivers an INTERNAL bridge through constructor
+onCoordinationReady. captureParentTicket(capability) validates the existing capability
+and stores capability/generation in a WeakMap under a frozen opaque object. No ticket
+fields contain authorization data. Serialized copies cannot authenticate; nothing is
+persisted. withParentTicket(ticket, action) validates before action and after await,
+and supplies an assertCurrent guard closure to trusted internal adapter code. Late errors
+also revalidate before surfacing. It uses existing authorizeParentRead ordering so old
+tickets cannot lock/renew a newer session. Reads never renew five-minute inactivity.
+
+createSqliteStore optionally delivers private readVerifiedInstallationIdentity,
+readReferenceReceipts and updateWithReferenceReceipt methods through its own constructor
+onCoordinationReady. They are NOT properties of returned public store/read/update or
+household UI service. Future trusted composition must wrap these in withParentTicket;
+guard functions must NEVER come from caller request data. Constructor callbacks are
+internal dependency-injection authority, not a new authentication scheme or untrusted
+public endpoint. No production coordinator receives these callbacks yet.
+
+Identity path requires an existing ready installation, valid native envelope, matching
+SecureStore id/valid record, supported state/policy and valid assignment documents.
+It returns ONLY {installationRef: existing credentialId} to internal action. Missing,
+pending, malformed or mismatched states reject; unlike ordinary legacy bootstrap reads,
+this path NEVER promotes pending to ready. No verifier/PIN/state dump is returned.
+Web identity and persistence are unchanged; no web coordinator implementation added.
+
+### Additive receipt schema and private transaction API
+
+New householdReferenceReceipts.js supports two additive tables in the existing native
+household DB, initialized transactionally on adapter open:
+
+- household_reference_meta: singleton id=1, version=1. This is a dedicated sidecar
+  marker; no change to installation payload/nativeStorageVersion/SQLite user_version.
+- household_reference_receipts: AUTOINCREMENT sequence PK; fixed version1; unique
+  operation_id/idempotency_key; installation_ref; canonical typed request_json;
+  request_fingerprint; committed content_revision/write_revision; committed_at;
+  fixed outcome applied. CHECK constraints enforce basic values. No image bytes,
+  educational text, verifier, capabilities or tickets in receipts.
+
+Only when BOTH tables are absent may fresh sidecar creation occur. Partial schema,
+unknown marker, unexpected column layout or malformed receipt fails closed; no reset
+or payload rewrite. Sidecar version/layout/records are revalidated for protected
+transactions, even on a cached open adapter. Creating tables does not normalize legacy
+documents. Failed DDL transaction leaves existing household payload intact.
+
+Request exact fields: operationId, idempotencyKey, kind create_binding/retire_binding,
+installationRef, assetId, bindingId, assignmentId, sourceId, originatingContentRevision,
+expectedContentRevision, expectedWriteRevision, referenceEpoch, reservationGeneration,
+payloadDigest. These are coordination-intent metadata, NOT actual image bindings.
+Version/outcome/sequence/fingerprint are adapter-issued, not accepted receipt claims.
+Expected null/null means assignment must not exist and requires a creation mutation;
+existing documents require exact contentRevision/effective writeRevision (absent=0).
+Existing target/source must resolve uniquely. New target/source and resulting document
+must validate with unchanged assignment validators. Wrong scope rejects.
+
+updateWithReferenceReceipt(request, synchronousMutateOrNull, assertCurrent) snapshots
+the request, validates ready household/SecureStore and receipt schema in an exclusive
+transaction, checks exact prior replay/conflict and expected target revisions, and
+invokes a synchronous pure mutation only if supplied. Mutation cannot change household
+metadata, envelope structure or other assignments. New target document must match
+payloadDigest (SHA-256 canonical document, existing @noble/hashes). Receipt-only requests
+require null digest/mutator; retire-binding intents are receipt-only in this gate.
+Existing approved pure review/correction transformations remain the responsibility of
+future authorized callers; this internal foundation does not replace those workflows.
+
+Immediately before FIRST protected SQL mutation, after all asynchronous reads,
+assertCurrent runs synchronously. Receipt INSERT and any changed target payload UPDATE
+share the SAME transaction; payload UPDATE uses raw-original-payload equality in WHERE
+and requires changes=1. This preserves valid legacy whitespace/encoding on read and
+avoids a JSON reserialization CAS mismatch. Receipt-only never issues payload UPDATE.
+Mutation failure/SQL failure rolls back receipt and payload together. No async mutator.
+
+Once receipt write is validly issued, transaction may finish atomically after later
+revocation; protected result is then suppressed. No auth recheck aborts merely due to
+late session loss between its SQL writes. No cross-store issuance authority is implied.
+Exact operation/key/fingerprint replay returns original receipt without repeating
+mutation or incrementing revisions/sequence. Conflicting ID/key/input rejects. Internal
+receipt reads expose minimal typed intent/receipt metadata, not full assignment text.
+No receipt/caller completeness flag is proof of cross-store success or writer coverage.
+
+### Evidence and remaining boundaries
+
+New householdCoordination.test.js uses real isolated Node SQLite, including temporary
+on-disk close/reopen, with a fake SecureStore/credential engine and Expo-shaped bridge.
+Existing nativeHousehold test bridge gained getAll/exec transaction methods only.
+Node insert-result naming differs from Expo; receipt lookup uses unique operationId
+rather than relying on that result-property spelling. Android-native execution is NOT
+claimed by these tests.
+
+Tests cover public-API/ticket/credential non-exposure; stale tickets/new session safety;
+five-minute reads/explicit activity; pre-issuance revoke/expiry; post-issuance receipt
+and payload completion with suppressed response; late callback and new unlock; exact
+replay/conflicts; target/source revisions; legacy absent writeRevision/raw payload;
+atomic rollback; sync-mutation/fingerprint isolation; missing/malformed/mismatched
+SecureStore; pending non-repair; additive schema rollback/version checks; real-disk
+durability; must-not-exist creation. Full existing household/policy/practice/worklet
+regressions retained. Results recorded in current development log.
+
+Native verification remains: exclusive receipt/payload transaction durability on Android,
+SecureStore failure behavior and module availability, app background/route lifecycle
+with future caller composition. No device household data accessed. Additive schema will
+initialize on native adapter open when later run; tests alone do not authorize installing
+or updating existing Dev. No native build/dependency change needed for the source-only
+foundation, but real-device execution still requires separate authorization.
+
+Remaining 4B.3B-2/3: real scope bootstrap/accessor consumption, reference snapshots and
+complete writer coverage, capture-side reservations/fences, cross-store receipts/recovery,
+parent impact/confirmation and separately authorized file deletion. This gate adds only
+private household mechanisms and test interfaces. Status: READY FOR GATE 4B.3B-1 REVIEW.
+
+## Gate 4B.3A.1: finalized coordinator contract against existing code (2026-11-18 UTC)
+
+Design-only refinement. AUTH-002, REF-001, SCOPE-001, COORD-001, REF-002 and DEL-003
+are applied below as the recommended contract. No runtime/schema/data changes.
+This section supersedes ambiguous scope/receipt/issuance details in earlier proposals.
+
+### Exact writer-path inventory (existing versus future)
+
+| Path/API | Existing write/ownership | Binding consequence / future enforcement |
+| --- | --- | --- |
+| householdService.setup -> sqliteStore.update | Creates strict empty household; native credentialId and SecureStore binding through pending/ready bootstrap | No references. Must finish validated ready state before capture scope bootstrap |
+| householdService.unlock/verifyPin | Persists failures/cooldown, creates in-memory session after successful checks | No assignment/reference write; no source access merely from DB credential presence |
+| householdService.setPracticePolicy | Protected policy revision update | No references; no image eligibility side effect |
+| householdService.submitAssignment | Existing callable service creates a NEW normalized pending assignment; rejects duplicate IDs, parent declarations and verified fidelity | No structured image links today. No current production intake caller found. Must remain unable to create asset links by textual reference; future image-bearing conversion uses coordinator, not raw submit plus a later unjournaled bind |
+| householdService.loadDevelopmentSample, invoked from app/parent.js | Protected development-only sample creation; existing sample is retained rather than overwritten | No image bindings. Never adopt sample/fixture into real source ownership implicitly |
+| setFieldReview / markAllReviewed through mutateParentAssignment | Protected field progress; withdrawal can invalidate assignment approval | Source identities unchanged; document writeRevision may change, invalidating confirmation snapshots |
+| saveParentCorrections -> applyParentCorrections | Protected existing educational fields only; preserves original sources/IDs; material change increments content/write revision and selectively resets reviews | No retarget/structural source edit. Historical originating revision remains in binding; reconcile current revision vector without rewriting history |
+| approveReviewedAssignment / approveWithoutDetailedReview | Protected explicit approval evidence, no source fidelity upgrade | No link creation/retirement; approval/write revision changes require stale-confirmation rejection |
+| storage/sqliteStore.read/update + localHousehold.js | Native serialized exclusive installation-envelope persistence; generic update is private composition, not public UI API | Future adapter receipt extension must be internal. Generic store access must never bypass coordinator for image-bearing writes |
+| storage/indexedDbStore + localHousehold.web.js | Web single-record household persistence, same service commands | No native credentialId binding or capture-file repository implementation; do not infer native scope compatibility |
+| capture core bind | Pure historical binding primitive; caller data only | No production writer. Future coordinator owns all persisted uses |
+| captureSqliteStore.applyMetadata / recordImageObservation | Capture-only create/save/reorder or observed integrity; cannot currently persist bind/retire/deletion transitions | Future new internal APIs must check fences/epochs, not expand UI command dispatch |
+| capture reserve/checkpoint adoption + captureImageAdoption | Adds immutable image/page to own capture, no assignment creation or binding | Must preserve scope/root identity. Does not authorize viewing other saved originals; no silent replacement of old binding |
+| CaptureProof / fixtures / normalization / practice session | Proof cache only or in-memory content/practice; not household reference writers | Preserve isolation; no reference is established by preview/normalization/exercise generation |
+| Assignment import/replacement/deletion, structural editing, source-image retirement | No implemented production service/route found | Must not invent these capabilities. Every future such writer requires reservation/receipt/fence integration before exposure |
+| Future trusted preparation-to-assignment conversion, explicit source relink/retirement | NOT implemented | Sole future creation/retirement route for image links; trusted suitability/conversion approval remains separate scope |
+
+No current production path creates/retire structured image bindings; this does NOT
+prove future writer coverage. REF-002 requires an explicit registry/test inventory of
+all asset-bearing writers and reconciliation of persisted references before enabling
+linked deletion. Raw source.reference is inert descriptive text, never an image URI
+resolver or alternate binding mechanism.
+
+### AUTH-002: exact authorization bridge
+
+Existing public service methods: setup, unlock, lock, noteParentActivity, protected
+policy/assignment read/write commands. Existing private functions: authorize(capability),
+authorizeParentRead(capability, epoch=generation), readParentState. TIMEOUT=5 minutes;
+session is an object identity, expiresAt uses sessionNow (native composition supplies
+performance.now), lock increments generation. SecureStore holds credential record,
+not session. Parent route locks on exit/background. No public generic coordinator
+authorization interface currently exists.
+
+Proposed internal bridge minted inside createHouseholdService closure:
+captureParentTicket(capability) -> opaque memory-only ticket; assertParentTicket(ticket)
+checks recorded capability and generation with authorizeParentRead ordering and current
+expiry/credential availability; readBindingSnapshot(ticket, assignmentIds) validates
+before/after storage read and returns validated minimal IDs/source IDs/contentRevision/
+effective writeRevision. Never call raw authorize on an old capability before checking
+generation: that could lock a newer session. Do not export assert closures to UI or
+persist tickets. No second PIN system, no automatic activity renewal from reads.
+
+At each parent-only operation's first durable effect, assert synchronously inside the
+transaction callback immediately before write issuance, after all asynchronous reads.
+Capture reservations/fences are protective metadata, NOT blanket permission to issue
+a later parent-only household write after revocation. If loss occurs BEFORE that
+household write is issued, hold/reject pending operation until reauthorization.
+Once a particular DB transaction is validly issued, let it finish atomically; later
+bookkeeping may reconcile its committed receipt without redoing the user action.
+After any loss suppress protected result, reread on re-entry, never renew/revoke a
+newer session. Cross-DB operations are not made atomic merely by first journaling them.
+
+### SCOPE-001: native identity bootstrap and no silent rebinding
+
+Native installation payload is {nativeStorageVersion:1, credentialId, state}; matching
+SecureStore value at french-companion.parent-credential.v1 contains {id,record}.
+credentialFor enforces id and verifier validity; pending bootstrap only resumes strict
+empty state. This existing credentialId is the installation consistency key. Reuse it
+through proposed internal readVerifiedInstallationIdentity(), only after ready-state/
+SecureStore validation and with parent authorization for saved-source bootstrap.
+It must never expose verifier or credentialId in UI/routes. Existing read() strips
+this identity from its returned state, so an internal accessor is a proposed addition.
+
+Do not introduce a second independent household ID. Capture scope_binding stores the
+verified existing installation reference and schema/generation; any opaque scope handle
+is a derived service alias, not another authority. Already-bound exact match reopens;
+different/missing/unknown identity fails closed. Never silently rebind, reset PIN,
+rewrite SecureStore or claim existing proof/test captures for that identity. Recommend
+bootstrap only an empty capture repository under explicit authorized initialization;
+nonempty unbound repositories require separately approved ownership resolution.
+Changing installation or moving data between households is outside this contract.
+Current credential rotation/PIN-change/reinstall semantics are not implemented and
+must be reviewed before any rebinding policy is added.
+
+CONCRETE PLATFORM GAP: web household envelope has no native credentialId/SecureStore
+binding. Choose native-first coordinator (recommended), disabling scope-dependent capture
+features on web; alternatively approve a new durable web installation identity and
+versioned migration later. Do not derive identity from PIN verifier, assignment IDs,
+titles or a caller household selector. No native identity/data change needed to reuse
+credentialId, but adding an accessor and scope-binding metadata is future implementation.
+
+### REF-001 / COORD-001: exact minimal household receipt
+
+Existing native DB: french-companion-local-v1.db, installation(id=1,phase,payload).
+There is no SQLite user_version migration scheme or receipt table today. update(mutate)
+requires a synchronous function, owns its exclusive transaction and returns only state;
+it cannot currently atomically write an extra table via the callback. Do not perform a
+second receipt transaction afterward and claim atomicity.
+
+Proposed ADDITIVE table household_reference_receipts, separate from installation payload
+and assignment validators, with these fields:
+
+- receiptVersion=1; operationId PRIMARY KEY; idempotencyKey UNIQUE; canonical complete
+  typed-request fingerprint (including a digest of any separately authorized conversion
+  payload, not just IDs/revisions; no educational text or capability stored in receipt).
+- installationRef (the existing verified identity); kind create_binding/retire_binding;
+  assetId, bindingId, assignmentId, assignmentSourceId; originatingContentRevision.
+- expectedContentRevision, expectedWriteRevision; committedContentRevision,
+  committedWriteRevision (effective legacy absent writeRevision=0 is preserved).
+- referenceEpoch at reservation; reservationGeneration; outcome applied; committedAt.
+  A separate monotonic receiptSequence/unique sequence supports exhaustive reconciliation.
+
+For a new assignment, expected document revisions are an explicit null/null pair meaning
+must-not-exist, never a wildcard; committed revisions are validated positive values.
+Existing legacy documents retain effective writeRevision=0 without rewriting them.
+
+Only the household adapter/coordinator issues receipts; callers cannot submit records
+as evidence. One receipt per atomic logical binding operation; batch conversion uses
+one operation family plus distinct binding operation IDs/receipts. Existing assignment
+content is not changed merely to write a receipt. For a future conversion that DOES
+create an assignment, assignment creation and receipt belong in the same transaction;
+the conversion is separately authorized and still passes current validators.
+Receipt-only binding/retirement keeps assignment content, approval and writeRevision
+unchanged. Retirement never removes historical core binding or tombstone.
+
+Proposed internal updateWithReferenceReceipt(ticket, typedRequest, synchronousMutate)
+validates ready installation, existing/incoming assignment/source and expected revisions,
+checks exact prior receipt replay/conflict, applies pure synchronous change if any,
+asserts ticket immediately before FIRST durable SQL mutation, and writes receipt plus
+any assignment payload update in one household transaction. A null mutate is a validated
+receipt-only operation, not a forced rewrite of all household data. Return minimal
+receipt/snapshot only after post-write authorization. Internal recovery lookup validates
+same installation/operation without replaying approvals or corrections.
+
+No rewrite/migration of existing installation payload, sources or assignment schema is
+necessary. However creating the sidecar table/index and a version marker IS an additive
+household database schema extension requiring explicit future approval. Alternative
+capture-only receipt cannot prove whether a household write committed: if household
+schema extension is not approved, restrict to capture-only work and keep linked deletion
+disabled. Do not silently add receipt fields to strict assignment envelopes instead.
+
+### Coordinator record ownership and epochs
+
+Proposed capture-side operation fields: recordVersion, operationId, idempotencyKey,
+kind bind/retire/discover_delete/issue_delete, canonical typed request, installationRef,
+assetId, assignmentId/sourceId/bindingId where applicable, expectedManifestRevision,
+expectedReferenceEpoch, reservationGeneration, expected household revision vector,
+phase reserved/household_applied/binding_applied/complete/blocked, receipt operation IDs,
+ownerGeneration, leaseUntil, issuedAt/completedAt, fixed errorCode. Captured timestamps
+do not authorize replay. Canonical manifest remains authoritative for committed bindings;
+operation records are authoritative for reservations/unfinished work, not duplicate
+editable binding graphs. Core bind is immutable; sidecar retirement marks lifecycle.
+
+referenceEpoch is a capture-DB coordinator sequence for reservation, binding, retirement
+and fence changes. Household receiptSequence is independent; no equality assumption.
+Parent auth generation is volatile and independent of both. Confirmation snapshot binds
+all three authorities: manifest/reference/fence versions, validated household revision
+vector/receipt watermark, and current parent ticket. All asset-bearing writers check
+the same durable fence and epoch in their capture transaction. Unrelated field review
+can advance writeRevision and force fresh confirmation without altering image links.
+
+### Binding/retirement and completeness sequence
+
+1. Trusted coordinator validates current scope and relevant parent ticket, discovers
+   exact source/asset targets, checks no destructive fence, and writes reservation plus
+   referenceEpoch under capture CAS BEFORE any household-side asset-bearing change.
+2. Household adapter commits matching receipt and any independently authorized assignment
+   change under document revisions and AUTH-002. An existing source can get a receipt
+   without altering its assignment; original revision/history is recorded explicitly.
+3. Capture adapter validates exact receipt/reservation/installation and current target,
+   persists core bind and journal atomically under latest CAS. If a competing unrelated
+   revision changed, revalidate rather than guess/rebase source identity. Existing binding
+   with same operation replays; conflicting payload rejects.
+4. Retirement follows the same protocol but appends retirement metadata/receipt. Preserve
+   historical binding, original excerpts, approval and image retention. No source purge
+   API or policy is implied by 'retired'. Missing current source requires reconciliation,
+   not automatic historical-reference removal.
+
+Completeness certificate is INTERNAL, scoped to asset and current fence: validated
+installationRef, manifest revision, referenceEpoch, exact sorted committed/historical
+binding IDs, all reservation/receipt operations, household revision vector and receipt
+watermark, fence owner/generation. Only coordinator builds it after proving all writers
+are fenced and all preceding operations reconciled. It is not accepted as a serialized
+request object and is not cryptographic evidence against malicious disk modification.
+Incomplete stores, receipts, writer coverage, unknown IDs, unsupported state or scope
+mismatch means no certificate and linked deletion blocked (REF-002). Native raw SQL
+tampering is not a supported alternate writer and must fail validation/reconciliation.
+
+### DEL-003: deletion fence states and restart guarantees
+
+Per immutable asset: no fence -> discovery -> deletion_issued -> deleted. Optional
+blocked state retains the previous protective state and reason, not an unlocked state.
+Discovery blocks NEW reservations; previously issued reservations reconcile first.
+Only after that union is complete may the service produce minimal affected IDs/titles
+and the explicit shared-image warning. No paths, source excerpts or credentials in
+impact summary. Confirmation handle binds exact set, revisions, watermark, fence and
+parent epoch; old handles never survive session/restart or changed impact.
+
+discovery -> no fence is permitted only by explicit cancellation or governed recovery
+that PROVES no issued intent and no unresolved reservation/receipt depends on it.
+Lease expiry alone never releases a fence. For orphan discovery, reacquire ownership,
+inspect durable journal plus both stores and invalidate old confirmation before release.
+deletion_issued is durable authorization issuance, created with core deletion intent,
+CAS and exact impact in ONE capture transaction after synchronous final parent check.
+No release merely because a timer, route or session ends. deleted retains fence/tombstone
+and historical links; a new photograph is a new asset, not fence removal/resurrection.
+A failed/ambiguous unlink remains protected blocked/deletion_issued, not deleted.
+
+Actual file removal and absence confirmation remain future separately authorized work.
+A validly issued deletion can finish after later revocation, with protected results
+suppressed. Reentry validates current session and rereads. No approval/field review,
+fidelity, contentRevision/writeRevision or policy change follows source availability.
+Saved images never expire or disappear after review/approval.
+
+### Interrupted operations: exact reconciliation
+
+| Durable evidence | Action |
+| --- | --- |
+| Capture reservation, no household receipt | Check ready installation/revisions; no assumption assignment unchanged. Resume only after required current authorization, or abort only if adapter proves no associated household write. Keep protection while uncertain |
+| Household receipt/payload committed, capture bind absent | Validate operation fingerprint/IDs/revisions and installation; finish same reserved binding/history, not another assignment or approval. If current state diverged, block and preserve receipt/reservation |
+| Bind/retirement committed, acknowledgement lost | Replay matching IDs, complete journal only; no second binding, receipt or document revision |
+| Household write validly issued then parent locks | That DB transaction may finish; reconcile its receipt later without replaying a parent action. Unissued further parent-only writes wait for reauthorization |
+| Restart with expired worker lease | New owner generation may recover, but fence/protection persists; stale worker cannot commit, renew or clear it |
+| Missing/locked/malformed household or capture store | Reject new discovery/deletion, preserve evidence/fences; no reset, PIN workaround or assumed empty reference set |
+| Deletion issued, file work/tombstone incomplete | Resume exact persisted issued operation only when scope/fence remains provable; otherwise hold. Never infer absence from journal existence |
+
+Each DB can atomically commit its own records. Neither both DBs nor SecureStore/files
+participate in a distributed atomic transaction. Persisted operation IDs/receipts plus
+fences are necessary to bridge this gap; independent reads or a JS mutex are insufficient.
+
+### CAP-002, tests and remaining prerequisites
+
+Provider is privately constructed from verified installation binding, the SAME household
+service session ticket and matching capture store/root. It validates ticket/scope before
+and after discovery; returns the same opaque object only while both remain current.
+No UI household selector, supplied object or boolean establishes authority. Missing/
+changed provider suppresses saved findings; adopting a student photo remains nonblocking.
+Only category/count, never saved IDs/titles/paths. No cross-household scan, scope rebinding
+or visual similarity. Current isolated factory still cannot authenticate its constructor;
+no production exposure until coordinator composition/all-writer proof is tested.
+
+Test matrix for future implementation: real SQLite receipt/payload atomicity and
+rollback; existing ready/pending/legacy documents unchanged; missing SecureStore binding;
+native/web scope mismatch and no silent rebind; every writer in inventory; fenced new
+bind versus existing reservation; all partial states above; duplicate/conflicting keys;
+historical retirement completeness; unsupported/missing source; stale document/vector/
+epoch/receipt watermark; expired queued authorization, revoke-after-issuance and newer
+session preservation; timeout/restart must not release unresolved fence; changed/absent
+CAP-002 scope and no private findings. Keep strict/independent and FC-005/FC-006 regressions.
+
+Native prerequisites remain: Expo exclusive transactions/sidecar migration durability,
+SecureStore readiness without credential reset, private filesystem permission/absence/
+digest semantics and backup exclusions, Android background/route locking and resolver
+clearing. Node real SQLite cannot prove Android process-kill/power-loss or native I/O.
+Main Dev artifact/signing/runtime verification still required before authorized integration.
+
+REVIEW ITEMS / CONCRETE GAPS: approve additive household receipt table/API and narrow
+auth/identity bridge; native-first versus later web identity migration; nonempty-unbound
+capture ownership resolution (default reject); explicit all-writer coverage and fence
+recovery implementation. Existing update(mutate) cannot satisfy REF-001 as-is, and web
+cannot satisfy native SCOPE-001 as-is. These are bounded proposed additions, not a
+reason to alter validators or introduce another auth system. Existing household payloads
+need no data migration; additive coordination schema still needs future authorization.
+Status: READY FOR GATE 4B.3A.1 REVIEW. Gate 4B.3B implementation remains unauthorized.
+
+## Gate 4B.3A: trusted reference coordinator design (2026-11-17)
+
+DESIGN ONLY. Baseline 3a2e98ac0164d4b0427eab7dc49e93afc19f7370; isolated repository
+core and durable metadata/adoption milestones complete. No coordinator, binding service,
+parent authorization bridge, source deletion worker or production integration implemented.
+This section refines prior coordinator proposals without changing approved policies.
+
+### Actual integration points and authority
+
+| Existing implementation | Reuse / required future adaptation |
+| --- | --- |
+| services/localHousehold.js + storage/sqliteStore.js | One household installation payload in french-companion-local-v1.db, SecureStore verifier binding via internal credentialId, serialized exclusive updates; no global assignment revision or public household identifier for scope selection |
+| services/householdService.js | Five-minute in-memory capability/session, inactivity renewal, generation on lock, epoch-aware parent reads/mutations; authorizeParentRead and readParentState are private, not callable coordinator APIs |
+| app/parent.js | Background/exit locking and protected content clearing; retain unchanged semantics, require coordinator host cleanup subscriptions later |
+| assignmentDocument/validateAssignment | Strict existing document/source shape, contentRevision/writeRevision, textual sources and original excerpts; no asset IDs, no image linkage inferred from reference strings |
+| captureRepositoryCore.js | Immutable asset/page identity, historical bind primitive, deletion/cleanup contracts and CAS; no service authorization or trusted completeness guarantee |
+| storage/captureSqliteStore.js | Separate capture DB schema2, canonical manifest authority, operation/adoption journal and metadata CAS; no persisted bind/deletion/cleanup-command API or scope/fence tables |
+| captureImageAdoption.js | Internal constructor-bound store/files; saved duplicate provider hook defaults off and compares opaque object identity; no household auth or multi-household partition |
+| ADR-0006 / FC-005-06/07 and ADR-FC-007-001 | Preserve issued-write authorization boundary, selective correction reviews, fidelity/approval separation and future trusted preparation gate. Preparation ADR remains labelled draft in source; do not silently promote it |
+
+SecureStore persists credential material, not an authenticated session. Parent session
+lives in household service memory and dies on lock/restart. Do not put capability,
+PIN, verifier, confirmation handle or session object into capture metadata or URLs.
+Coordinator should be composed internally with ONE household service/storage authority
+and its matching capture store/file root; UI must never construct this composition.
+
+### Proposed scope binding and reference ownership
+
+Add a future capture-side scope_binding singleton: opaque scopeId, internal installation
+binding reference, binding version/generation and bootstrap operation identity. Compare
+against validated native installation credentialId through a narrow trusted household
+adapter, not by reading/exporting credential secrets. credentialId is consistency
+identity, NOT authorization. No assignment schema field or public householdId parameter.
+Missing/mismatched scope blocks saved-source access, saved duplicate discovery and new
+destructive intents. Do not auto-claim isolated test/proof captures for a real household.
+Bootstrap/rebinding/recovery semantics need explicit implementation approval; rebinding
+to another installation must never inherit images or require resetting household data.
+
+Authoritative committed reference: immutable bindingId -> assignmentId/sourceId,
+originating contentRevision and exact assetId. Resolve capture/page via immutable asset
+metadata. Never follow page.currentAssetId for historical evidence. New interpretation/
+retake creates a new asset/binding, not retargeting old source evidence. Metadata outside
+assignment objects records current/historical/retired linkage and coordinator operation;
+retirement does not delete historical binding or free an image under RET-001. Existing
+core bind records lack retirement fields: future sidecar journal supplies lifecycle,
+with explicit schema review before implementation. No historical purge is proposed.
+
+Complete reference union includes all committed current AND historical core bindings,
+all reserved/unfinished coordinator link operations and all retention-protection records.
+Current household assignment/source IDs/revisions must reconcile with that union. Raw
+source.reference text is never a file locator/reference authority; UI resolves images
+only through coordinator-owned bindings. No array-position or title matching.
+Unknown missing assignment/source, malformed documents or failed credential binding
+blocks completeness. An explicitly recorded retirement is not permission to silently
+discard its historical impact. There is no implemented assignment-deletion workflow
+to assume resolves missing assignments.
+
+### Durable coordinator metadata proposal
+
+Extend capture DB only under future authorization with:
+
+- scope_binding singleton and positive referenceEpoch, incremented on every reference
+  reservation/commit/retirement/fence change, plus supported schema version.
+- coordination_operations: unique operationId/idempotencyKey, canonical typed request
+  identity, scopeId, targets, expected capture revision, household assignment revision
+  vector, phase, reserved binding IDs, fixed outcome/error, owner generation/lease.
+- reference_reservations/protections keyed to those operations, indexed by asset and
+  assignment/source. They exist BEFORE any cross-store assignment write can occur.
+- asset_fences: assetId PK, scopeId, operationId, fence generation, state discovery/
+  deletion_issued/deleted, owner generation and lease where applicable. All reference
+  writers and destructive workers must check under the same capture DB transaction.
+- linkage lifecycle sidecar for immutable historical bindings; no alternate mutable
+  binding graph or copied educational content. Keep canonical core manifest authoritative.
+
+These tables/APIs do not exist today. Current adoption lease is per adoption attempt,
+not a shared-reference fence or proof that household storage is available.
+
+### Completeness proof and writer protocol
+
+The proof is an enforced closed writer protocol plus consistent persisted snapshots,
+NOT a signed caller assertion or two independently successful reads:
+
+1. Only internal coordinator writes asset-bearing assignment links. Whitelist/encapsulate
+   store mutation interfaces; test that UI, route and raw submission paths cannot create
+   a durable asset binding. Plain source text remains inert. Out-of-band/native DB
+   corruption is a fail-closed inconsistency, not a supported alternate writer.
+2. Before conversion/link update, capture transaction validates scope, asset status,
+   manifest CAS and fences; records reservation + operation ID and increments epoch.
+3. Household transaction validates intended assignment/source and expected content/
+   write revisions through existing validators, and checks authorization for any
+   parent-only action. Persist the same operation identity in separate household
+   coordination sidecar metadata in the SAME transaction as that assignment write.
+   No new image field in assignment schema. This sidecar extension is proposed, not
+   an existing atomic-write facility. If no assignment change is needed, validate a
+   revision-bound read before committing only the capture binding.
+4. Capture transaction rereads reservation/fence/scope/revisions, invokes core bind,
+   CAS-persists manifest plus journal progress and increments referenceEpoch. Retain
+   all historical bindings. Clear protection only after both stores reconcile.
+5. Destructive discovery fences target asset, reconciles ALL preceding reservations,
+   obtains validated household revision vector and exact current/historical binding
+   union, then rechecks capture revision/epoch/fence generation. Any unresolved work
+   yields blocked, never referencesComplete=true. Fence blocks NEW reservations while
+   already-issued operations reconcile before impact/confirmation is generated.
+
+All household writers that could change relevant source identities or assignment
+existence must participate in this protocol. Existing field corrections/approval do
+not retarget source IDs, but their writeRevision changes still invalidate a pending
+confirmation vector. A global durable household revision does not currently exist;
+use per-document content/write revisions plus coordinator sidecar sequence. Prove
+coverage before exposing deletion; a JavaScript mutex alone cannot cover processes.
+
+### Parent authorization bridge and proposed API
+
+Future household-service extension should issue an opaque INTERNAL session ticket
+and expose a synchronous epoch-aware assertCurrent(ticket) closure that validates
+the original capability identity, current generation, expiry and credential availability.
+It must use the newer-session-safe authorizeParentRead ordering, not call raw authorize
+with an obsolete capability (which could lock the newer session). Do not expose verifier
+or raw private functions. This bridge reuses current authentication and requires explicit
+implementation review; it is not a second PIN system or a persisted auth receipt.
+
+Proposed coordinator methods (not implemented):
+
+| Method | Required boundary / result |
+| --- | --- |
+| openSavedSource(capability, assignmentId, sourceId) | Authorize before/after async reads; resolve current validated binding and availability inside bound scope; return short-lived opaque resolution ticket, not public filesystem path/navigation parameter |
+| prepareSourceDeletion(capability, assetId) | Authorize, acquire temporary discovery fence, reconcile and enumerate all impacts; return service-owned confirmation handle and minimal parent summary |
+| confirmSourceDeletion(capability, handle, explicit confirmation) | Reauthorize current epoch, complete reference set, scope/revision vector/fence; commit core deletion intent and durable issued fence together |
+| cancelSourceDeletion(capability, handle) | Cancel only unissued discovery fence owned by this handle; never cancel issued unlink merely due to session loss |
+| bind/retire internal operations | Only validated conversion/review coordinator, journal reservation and CAS; no caller-supplied referenceEpoch/completeness/protection arrays |
+| duplicate provider internal hook | Validate scope/session before and after discovery, returning same live opaque epoch object; no client household selector or arbitrary scope objects |
+
+Saved-source viewing, correction and deletion remain Parent Area-only (AUTH-001).
+Image replacement is not educational correction/approval. Actual material corrections
+continue FC-005-07 invalidation/selective review semantics. Authorized interaction may
+renew activity through existing activity API; passive reads/recovery never renew it.
+Five-minute expiry, background locking and route-exit revocation stay unchanged.
+Resolver tickets bind scope, asset/binding IDs, session epoch and availability/fence
+generation; invalidate and clear decoded UI on lock/delete/retake/navigation. No URL
+parameter is a capability. File unlink alone does not erase already-decoded pixels.
+
+### Shared deletion: exact sequence and preservation
+
+Parent summary contains affected assignment IDs/titles and page labels only, including
+historical references where relevant; no unnecessary educational text, credential,
+path or household identifiers. Unknown/unresolvable impact blocks confirmation. Warning
+must say the original image becomes unavailable for ALL affected assignments while
+their content and approved practice material remain. Duplicate image assets with
+different IDs are not merged or deleted implicitly.
+
+Discovery handle is kept in service-owned memory and bound to scope, session epoch,
+assetId, exact sorted binding set, referenceEpoch, manifest revision, household revision
+vector and discovery fence generation. Restart/session loss before issuance requires
+fresh discovery/confirmation. Discovery fence may be cancelled/expire after validation
+that no durable deletion intent exists; timeout is a future engineering decision.
+
+On explicit confirmation: reconcile/revalidate, enter capture exclusive transaction,
+assertCurrent(ticket) synchronously immediately before durable intent write issuance,
+invoke core beginDeletion/CAS and persist deletion_issued fence + coordinator journal
+atomically. No await between final auth assertion and write issuance. If auth changed
+while queued, reject without intent. Stale impact/fence/vector requires a fresh warning.
+
+Only an eventual separately authorized file worker unlinks the immutable owned asset.
+Once validly issued it may complete after later auth loss (FC-005-06); no cancellation
+of issued persistence. Every worker checks durable operation/fence identity; no path
+reuse or index-based deletion. After confirmed absence, core completion and tombstone/
+deleted fence commit together. Physical deletion is not implemented in this gate.
+
+Keep historical binding, originalText, fidelity, provenance, review status, approval,
+contentRevision and writeRevision unchanged. Source availability is separate metadata;
+strict/independent eligibility continues through existing household service. Saved
+images never expire automatically; assignment approval never cleans them up. Deleted
+fences reject new links forever unless a new explicitly identified asset is adopted.
+
+### Cross-store recovery and failure matrix
+
+No transaction spans household SQLite, capture SQLite, SecureStore and filesystem.
+Do not assume ATTACH or distributed transactions; future dual-store operations use
+durable reservations/sidecar receipts and deterministic reconciliation:
+
+| Interruption/state | Recovery rule |
+| --- | --- |
+| Reservation durable, household untouched | Validate expected revisions; resume original operation or explicitly abort reservation only after proving no household receipt/write; never age-delete protection |
+| Household assignment/receipt committed, binding not committed | Read exact matching operation receipt and validated source/revisions; complete original binding with same reserved ID, not a second assignment |
+| Binding durable, acknowledgement/operation completion lost | Compare immutable binding/receipt identity, finish journal only; identical request replays, conflicting idempotency payload rejects |
+| Existing household changed again | Reconcile exact operation receipt and current revisions; preserve historical binding where justified; otherwise block for explicit resolution, never silently retarget |
+| Store locked/unavailable/malformed/scope mismatch | No complete enumeration or new destructive intent; preserve reservations/fences, no reset/reinitialization/PIN workaround |
+| Discovery fence with no issued intent after crash | Reconcile operation generation and all writers, invalidate old handle, then release/replace fence safely; lease expiry alone does not prove absence of intent |
+| Deletion issued before crash, no unlink yet | Resume ONLY persisted authorized intent under current fence generation; no stored/recreated parent capability required for that issued work |
+| Unlink happened, tombstone commit lost | Recheck actual absence; complete same operation idempotently; no approval/content mutation |
+| Ambiguous physical error or inconsistent ownership | Hold blocked; never report deleted or automatically clear fence |
+| Old worker completes after takeover | Reject stale generation/lease; ignore protected response; never revoke/renew a newer session |
+
+Capture-side fence/manifest/journal commits can be atomic within that DB. Household
+assignment/sidecar receipt writes can be atomic within household DB. Their combination
+and file deletion CANNOT be atomic. A completed capture transaction or two store reads
+is not proof of cross-store success. Recovery must inspect matching durable operation
+identities. No blind reexecution of parent approvals/corrections. Background replay
+never surfaces protected data; re-entry reauthorizes and rereads current revisions.
+
+If an issued intent exists but a store later becomes unavailable, only resume when
+its persisted exact scope/fence/reference protection is still provable from the valid
+intent and coordinator state; otherwise hold. No NEW discovery/confirmation from
+unavailable household storage. Do not destroy uncertain images to unblock recovery.
+
+### CAP-002 trusted scope composition
+
+Bind one repository instance/file root to verified scope_binding and household adapter
+at internal bootstrap. The provider closes over the existing household session ticket
+and scope generation; it calls assertCurrent plus scope validation on BOTH invocations,
+and yields the same opaque object only while that identity remains authorized. Session
+replacement yields a different object, lock/expiry rejects or returns no scope. Provider
+may not accept UI householdId, booleans or objects as proof. Current object identity
+check alone is not auth and remains disabled by default until this wiring is tested.
+
+Only saved images in that bound repository are compared; no global multi-household
+scan or caller-selected DB. Return nonblocking category/count only, no saved titles,
+asset/source/assignment IDs or paths. No saved-warning inference without current parent
+scope. New-capture image can still be adopted without parent unlock; suppression of
+saved-match findings never blocks student capture or invents approval. Visual similarity
+is deferred; SHA-256/byte equality does not find rescans with different bytes.
+
+### Native dependencies, tests and future gates
+
+Expo SQLite: verify exclusive transaction behaviour, per-connection settings, sidecar
+atomic writes, busy/CAS/migration behaviour and journal durability on isolated Android.
+SecureStore: existing verifier binding, availability and corrupt/missing credential
+handling only; session auth remains in-memory household service. Files: future private
+driver must distinguish absence/access denial, preserve immutable keys, verify digest
+and prove unlink result; no deletion auth inferred from filesystem permission. Android
+lifecycle: background/exit lock, pending callbacks suppress, re-entry rereads. Main Dev
+APK modules/signing/backup exclusions remain unverified; builds/installs need approval.
+
+Suggested implementation order, each separately authorized: (1) internal scope/auth
+bridge plus journal/fence schema and real-SQLite tests without file effects; (2) binding
+reservation/receipt reconciliation with failure injection across independent stores;
+(3) protected read/impact/confirmation APIs with generation/epoch tests; (4) separately
+authorized deletion worker/recovery and native evidence; (5) isolated Android acceptance,
+then production-host integration decision. No Gate 4B.3B implementation authorized here.
+
+Tests must cover all reference writers, untracked/retired references, missing/unsupported
+assignment state, sidecar receipt failures, multi-connection competing reservation/fence,
+each cross-store crash point, duplicate keys, stale confirmation vector, expired/replaced
+sessions at transaction issuance, post-issuance completion, old callback/new session,
+scope mismatch, disabled/changed duplicate provider, and unchanged review/fidelity/
+approval/practice after availability-only changes under both policies. Use real SQLite
+for boundaries and injected faults; fake ports do not prove native/power-loss behaviour.
+
+Unresolved implementation decisions: approve narrow household authorization bridge and
+sidecar write API; scope bootstrap ownership/rebinding rules for existing isolated captures;
+coordinator schema/version and all-writer coverage; fence timeout/lease takeover and
+blocked-operation resolution UI; validated historical-retirement handling; native proof
+plan. Approved retention/deletion policies are NOT reopened. No credentials, data,
+assignment validators, auth semantics, native/dependency changes or source implementation
+modified. Status: READY FOR GATE 4B.3A DESIGN REVIEW.
+
 ## Gate 4B.2B-2A: finalized recovery and duplicate-scope verification (2026-11-17)
 
 Inspected actual service, file adapter and SQLite checkpoints. Expected digest/byte

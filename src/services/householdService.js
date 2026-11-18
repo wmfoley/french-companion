@@ -4,7 +4,7 @@ const { validateAssignmentDocument, getWriteRevision, assertWriteRevision, valid
 const { enumerateEducationalFields } = require('../core/assignments/educationalFields');
 const { applyFieldReview, applyMarkAllReviewed, applyParentCorrections } = require('../core/assignments/assignmentReview');
 
-function createHouseholdService({ store, credential, now = Date.now, sessionNow = now, supported = true, development = false, sampleProvider, setupDiagnostics }) {
+function createHouseholdService({ store, credential, now = Date.now, sessionNow = now, supported = true, development = false, sampleProvider, setupDiagnostics, onCoordinationReady }) {
   let session = null;
   let expiresAt = 0;
   let generation = 0;
@@ -310,6 +310,26 @@ function createHouseholdService({ store, credential, now = Date.now, sessionNow 
       return state;
     });
     return assignment.id;
+  }
+  if (onCoordinationReady) {
+    const tickets = new WeakMap();
+    function assertTicket(ticket) {
+      const saved = ticket && tickets.get(ticket);
+      if (!saved) throw parentReadError('parent_locked');
+      authorizeParentRead(saved.capability, saved.epoch);
+    }
+    onCoordinationReady(Object.freeze({
+      captureParentTicket(capability) {
+        authorizeParentRead(capability);
+        const ticket = Object.freeze(Object.create(null));
+        tickets.set(ticket, { capability, epoch: generation }); return ticket;
+      },
+      async withParentTicket(ticket, action) {
+        assertTicket(ticket);
+        try { const result = await action(() => assertTicket(ticket)); assertTicket(ticket); return result; }
+        catch (error) { assertTicket(ticket); throw error; }
+      },
+    }));
   }
   return { status, setup, unlock, lock, noteParentActivity, getParentPolicy, setPracticePolicy, listParentAssignments, readParentAssignment,
     setFieldReview, markAllReviewed, saveParentCorrections,

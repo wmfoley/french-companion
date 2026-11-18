@@ -1,8 +1,9 @@
 const CREDENTIAL_KEY = 'french-companion.parent-credential.v1';
+const { ensureReferenceSchema, createHouseholdReferenceAccess } = require('./householdReferenceReceipts');
 const LOCKED = 'Stored parent credentials are unavailable or inconsistent. Household data has been kept. Parent access and practice remain locked; do not reset the PIN.';
 
 /** Native serialization facade: same in-memory envelope as web; verifier never enters SQLite. */
-function createSqliteStore({ openDatabase, secureStore, randomId, validCredential }) {
+function createSqliteStore({ openDatabase, secureStore, randomId, validCredential, onCoordinationReady, coordinationNow }) {
   let opening;
   let queue = Promise.resolve();
   const copy = value => JSON.parse(JSON.stringify(value));
@@ -17,6 +18,7 @@ function createSqliteStore({ openDatabase, secureStore, randomId, validCredentia
     if (!opening) opening = (async () => {
       const db = await openDatabase();
       await db.execAsync('CREATE TABLE IF NOT EXISTS installation (id INTEGER PRIMARY KEY CHECK (id = 1), phase TEXT NOT NULL, payload TEXT NOT NULL)');
+      await ensureReferenceSchema(db);
       return db;
     })().catch(error => { opening = null; throw error; });
     return opening;
@@ -102,6 +104,7 @@ function createSqliteStore({ openDatabase, secureStore, randomId, validCredentia
       return result;
     }, trace);
   }
+  onCoordinationReady?.(createHouseholdReferenceAccess({ open, serialized, decode, credentialFor, now: coordinationNow }));
   return { read, update };
 }
 module.exports = { createSqliteStore };

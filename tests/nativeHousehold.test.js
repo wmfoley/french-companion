@@ -18,6 +18,8 @@ function nativeHarness({ randomId = async () => 'credential-id', beforeSecureWri
   let time = 1000;
   const credential = suppliedCredential || { valid: record => record?.test === 'verifier', create: async () => ({ test: 'verifier' }), verify: async pin => pin === '123456' };
   const tx = {
+    async execAsync(sql) { db.exec(sql); },
+    async getAllAsync(sql, ...params) { return db.prepare(sql).all(...params); },
     async getFirstAsync(sql, ...params) { return db.prepare(sql).get(...params); },
     async runAsync(sql, ...params) {
       if (failWrite || (failReady && sql.includes("phase = 'ready'"))) throw new Error('Injected interrupted write');

@@ -1,5 +1,20 @@
 # Development Backlog — v0.1
 
+## FC-007B Gate 4B.3B-1 — native household foundation
+
+- [x] Gate 4B.3B-1A targeted verification: six additional tests (coordination25, combined78/78, full434/434), lint and hygiene passed. Verified current authorization for replay, final pre-INSERT guard, first-write rollback, all request fingerprint fields, private reads and increasing sequence after restart. No production correction needed. Internal guard injection remains a trusted composition boundary; Android-native verification and coordinator wiring remain deferred.
+- [x] Implemented opt-in internal parent ticket bridge, ready/SecureStore-verified credentialId accessor, additive versioned receipt sidecar and atomic receipt/target-payload API. Public household/store API and web composition unchanged. No actual image binding/fence/coordinator wiring.
+- [x] New19 foundation tests; combined household/authorization72/72, full428/428, lint passed. Real isolated Node SQLite/close-reopen with fake SecureStore/credential engine; not Android-native evidence. Legacy writeRevision0, receipt-only exact payload preservation and post-issuance revocation semantics verified.
+- [ ] Gates 4B.3B-2/3 remain unauthorized: consume foundation for scope bootstrap, reservations/fences, reference completeness, cross-store recovery and saved-source workflows only after approval. Android transaction/SecureStore/lifecycle verification and any build/install remain separate.
+
+## FC-007B Gate 4B.3A — trusted coordinator design
+
+- [x] Gate 4B.3A.1 design refinement maps actual setup/submission/sample/review/correction/approval writers and confirms no production image binding/import/deletion writer. Defines native credentialId reuse, private epoch-aware auth bridge, exact receipt/coordinator fields, all-writer completeness and restart-protective fences. Current synchronous update API needs additive receipt support; web has no native installation identity. Recommend native-first, fail-closed nonempty-unbound scope, no assignment payload migration.
+- [ ] Gate 4B.3B-1 now implements the approved private household sidecar/bridge foundation. Remaining coordinator schema/all-writer enforcement, scope bootstrap and native verification need future approval; Gates 4B.3B-2/3 remain unauthorized. Lease timeout must never release unresolved fences. The earlier refinement itself made no code/schema/data changes.
+
+- [x] Design-only review documents constructor-bound scope ownership, proposed household epoch/auth bridge, immutable/historical binding union, complete writer protocol, capture-side fences/reservations and proposed household-side operation receipts. Cross-store writes are recoverable, not atomic. See current FC007B_CAPTURE_PROOF.md section.
+- [ ] Gate 4B.3B remains unauthorized. Owner review required for scope bootstrap/rebinding, narrow auth bridge/household sidecar write interface, coordinator schema, all-writer fencing, stale-confirmation/recovery rules and native evidence. No caller completeness flag/object or route household ID is authority. Deletion/production integration/builds require separate authorization.
+
 ## FC-007B Gate 4B.2B-2 — isolated adoption/integrity
 
 - [x] Gate 4B.2B-2A targeted verification: final-file process-stop state retains digest/ID, active lease blocks, recovery hashes existing bytes without recopy/overwrite, stale/corrupt recovery exposes no asset. Five new tests; adoption21 + SQLite22 =43/43 focused, full409/409, lint passed. Internal-only duplicate scope limitation explicit: no multi-household partition/auth implementation; trusted constructor must bind correct store/live parent scope. Untrusted request scope fields reject; unscoped saved findings off.
